@@ -1,6 +1,6 @@
 # AZINCO
 
-AI-Powered Global Accounting, Bookkeeping & Tax Management Platform.
+AI-Powered Autonomous Accounting, Bookkeeping & Tax Management Platform.
 
 > **AI prepares → deterministic code calculates → a qualified Reviewer of Record approves → the client receives deliverables.**
 
