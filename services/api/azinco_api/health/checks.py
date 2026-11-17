@@ -10,7 +10,7 @@ import asyncio
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import asyncpg
 import boto3
@@ -18,6 +18,9 @@ from botocore.config import Config
 from redis.asyncio import Redis
 
 from azinco_api.core.config import Settings
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 
 class ReadinessCheck(Protocol):
@@ -91,10 +94,17 @@ class StorageCheck:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._client: S3Client | None = None
 
-    def _head_bucket(self) -> None:
+    def _get_client(self) -> S3Client:
+        # Creating a boto3 client is slow (~1 s); build it once and reuse it.
+        if self._client is None:
+            self._client = self._new_client()
+        return self._client
+
+    def _new_client(self) -> S3Client:
         s = self._settings
-        client = boto3.client(
+        return boto3.client(
             "s3",
             endpoint_url=s.s3_endpoint,
             region_name=s.s3_region,
@@ -107,7 +117,9 @@ class StorageCheck:
                 s3={"addressing_style": "path"},
             ),
         )
-        client.head_bucket(Bucket=s.s3_bucket_documents)
+
+    def _head_bucket(self) -> None:
+        self._get_client().head_bucket(Bucket=self._settings.s3_bucket_documents)
 
     async def __call__(self) -> None:
         await asyncio.to_thread(self._head_bucket)

@@ -16,6 +16,8 @@ def test_health_ok(client: TestClient) -> None:
     assert body["status"] == "ok"
     assert body["service"] == "azinco-api"
     assert body["environment"] == "ci"
+    assert body["base_currency"] == "PKR"
+    assert body["reporting_currencies"] == ["PKR", "USD"]
 
 
 def test_request_id_generated_and_security_headers_present(client: TestClient) -> None:

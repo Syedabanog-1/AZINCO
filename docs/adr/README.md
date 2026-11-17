@@ -23,6 +23,7 @@ Owner decisions log:
 
 | Decision | Value | Date | Status |
 |---|---|---|---|
-| DEC-12 Base currency | PKR | 2026-11-17 | Confirmed by owner |
+| DEC-12 Base currency | PKR primary; reporting in PKR **and** USD | 2026-11-17 | Confirmed by owner (updated same day) |
+| DEC-14 International payments | **Stripe** only (PayPal removed). Client label: "Card" with "processed by Stripe". Adapter stays provider-agnostic | 2026-11-17 | Confirmed by owner |
 | DEC-01 First international market | UK | 2026-11-17 | Assumed — awaiting confirmation |
 | DEC-11 Auth approach | (a) FastAPI-native | 2026-11-17 | Assumed — awaiting confirmation |

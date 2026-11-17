@@ -48,7 +48,8 @@ async function LiveStatus() {
           </p>
           <p className="mt-1 text-xs text-ink-soft">
             {status.health.service} v{status.health.version} · environment{" "}
-            <span className="font-mono">{status.health.environment}</span> · checked at{" "}
+            <span className="font-mono">{status.health.environment}</span> · reporting{" "}
+            {status.health.reporting_currencies.join(" / ")} · checked at{" "}
             {status.checkedAt}
           </p>
         </div>

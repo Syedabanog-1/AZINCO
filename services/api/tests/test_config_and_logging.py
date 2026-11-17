@@ -37,6 +37,39 @@ def test_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     assert "x" * 20 not in repr(s)
 
 
+def test_default_reporting_currencies_are_pkr_and_usd() -> None:
+    s = make_settings()
+    assert s.base_currency == "PKR"
+    assert s.reporting_currencies == ("PKR", "USD")
+
+
+def test_reporting_currencies_from_env_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    for k, v in {
+        "AZINCO_DB_APP_PASSWORD": "x" * 20,
+        "REDIS_URL": "redis://:r@redis:6379/0",
+        "S3_ENDPOINT": "http://storage:9000",
+        "S3_ACCESS_KEY": "a" * 20,
+        "S3_SECRET_KEY": "s" * 20,
+        "AZINCO_REPORTING_CURRENCIES": " pkr, usd ",
+    }.items():
+        monkeypatch.setenv(k, v)
+    assert Settings().reporting_currencies == ("PKR", "USD")
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"reporting_currencies": ()},
+        {"reporting_currencies": ("PKR", "US")},
+        {"reporting_currencies": ("PKR", "PKR")},
+        {"base_currency": "GBP", "reporting_currencies": ("PKR", "USD")},
+    ],
+)
+def test_invalid_reporting_currencies_rejected(overrides: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        make_settings(**overrides)
+
+
 def test_invalid_log_level_rejected() -> None:
     with pytest.raises(ValidationError):
         make_settings(log_level="LOUD")

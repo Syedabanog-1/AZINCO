@@ -4,6 +4,8 @@ test("home page shows the core promise and Banking Channels", async ({ page }) =
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Experts approve.");
   await expect(page.getByText("Banking Channels")).toBeVisible();
+  await expect(page.getByText("Secure card payments processed by Stripe.")).toBeVisible();
+  await expect(page.getByText(/PayPal/)).toHaveCount(0);
 });
 
 test("status page reports all systems operational", async ({ page }) => {

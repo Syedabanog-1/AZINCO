@@ -4,6 +4,7 @@ import {
   JOURNEY,
   JURISDICTIONS,
   PRINCIPLES,
+  REPORTING_CURRENCIES,
   SERVICES,
 } from "@/lib/content";
 
@@ -107,6 +108,8 @@ export default function HomePage() {
             <h2 className="text-2xl font-semibold tracking-tight">Payments</h2>
             <p className="mt-2 text-sm text-ink-soft">
               An advance starts your task; final deliverables unlock when the balance is settled.
+              Every amount is recorded in your currency and reported in{" "}
+              {REPORTING_CURRENCIES.join(" and ")} at the exchange rate of the payment date.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-line bg-white p-4">
@@ -114,8 +117,10 @@ export default function HomePage() {
                 <p className="mt-1 text-sm text-ink-soft">Domestic payments within Pakistan.</p>
               </div>
               <div className="rounded-lg border border-line bg-white p-4">
-                <p className="font-medium">Card / PayPal</p>
-                <p className="mt-1 text-sm text-ink-soft">International clients.</p>
+                <p className="font-medium">Card</p>
+                <p className="mt-1 text-sm text-ink-soft">
+                  International clients. Secure card payments processed by Stripe.
+                </p>
               </div>
             </div>
             <p className="mt-3 text-xs text-ink-soft">

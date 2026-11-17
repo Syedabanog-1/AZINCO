@@ -14,6 +14,11 @@ describe("public content", () => {
     expect(content.DELIVERY_MODES.map((m) => m.code)).toEqual(["A", "B", "C", "D"]);
   });
 
+  it("reports in PKR and USD and offers Card via Stripe, not PayPal (owner decision)", () => {
+    expect(content.REPORTING_CURRENCIES).toEqual(["PKR", "USD"]);
+    expect(JSON.stringify(content).toLowerCase()).not.toContain("paypal");
+  });
+
   it("has a plan for every placeholder interface", () => {
     for (const key of ["login", "dashboard", "review", "admin"] as const) {
       expect(content.PLANNED[key].items.length).toBeGreaterThan(0);

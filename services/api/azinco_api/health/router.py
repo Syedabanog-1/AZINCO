@@ -20,6 +20,8 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     environment: str
+    base_currency: str
+    reporting_currencies: list[str]
 
 
 class ComponentStatus(BaseModel):
@@ -47,7 +49,12 @@ def get_readiness_checks(request: Request) -> Sequence[ReadinessCheck]:
 @router.get("/health", response_model=HealthResponse, summary="Liveness probe")
 async def health(settings: Annotated[Settings, Depends(get_app_settings)]) -> HealthResponse:
     return HealthResponse(
-        status="ok", service="azinco-api", version=__version__, environment=settings.env.value
+        status="ok",
+        service="azinco-api",
+        version=__version__,
+        environment=settings.env.value,
+        base_currency=settings.base_currency,
+        reporting_currencies=list(settings.reporting_currencies),
     )
 
 

@@ -44,6 +44,9 @@ export const DELIVERY_MODES = [
   { code: "D", title: "Bookkeeping only", body: "Books and reports without tax computation." },
 ] as const;
 
+// Owner decision 2026-11-17: reporting in both PKR and USD; PKR is the primary base currency.
+export const REPORTING_CURRENCIES = ["PKR", "USD"] as const;
+
 export const JURISDICTIONS = [
   "Pakistan",
   "United Kingdom",
@@ -67,7 +70,7 @@ export const PLANNED: Record<"login" | "dashboard" | "review" | "admin", Planned
   dashboard: {
     title: "Client dashboard",
     phase: "Phase 1 — MVP",
-    items: ["Task progress across the 5 stages", "Document upload", "Invoices via Banking Channels or Card / PayPal", "Downloads after settlement"],
+    items: ["Task progress across the 5 stages", "Document upload", "Invoices via Banking Channels or Card (Stripe)", "Downloads after settlement"],
   },
   review: {
     title: "Reviewer of Record dashboard",

@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { apiBaseUrl, fetchSystemStatus } from "@/lib/api/health";
 
 const NOW = () => new Date("2026-01-01T00:00:00.000Z");
-const HEALTH = { status: "ok", service: "azinco-api", version: "0.1.0", environment: "local" };
+const HEALTH = {
+  status: "ok",
+  service: "azinco-api",
+  version: "0.1.0",
+  environment: "local",
+  base_currency: "PKR",
+  reporting_currencies: ["PKR", "USD"],
+};
 const READY = {
   status: "ready",
   components: [

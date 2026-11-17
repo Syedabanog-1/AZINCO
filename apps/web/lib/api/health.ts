@@ -6,6 +6,8 @@ export const HealthSchema = z.object({
   service: z.string(),
   version: z.string(),
   environment: z.string(),
+  base_currency: z.string().length(3),
+  reporting_currencies: z.array(z.string().length(3)),
 });
 
 export const ComponentSchema = z.object({
