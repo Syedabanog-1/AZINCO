@@ -41,7 +41,7 @@ EXPECTED_ROLES = (
     "azinco_worker",
 )
 REQUIRED_EXTENSIONS = ("citext", "pgcrypto", "vector")
-HEALTHY_SERVICES = ("postgres", "redis", "mailpit")
+HEALTHY_SERVICES = ("postgres", "redis", "mailpit", "api")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -299,17 +299,38 @@ def check_clamav(stack: Stack) -> list[Result]:
     return [Result("clamav detects EICAR test file", "FOUND" in out, out[:80])]
 
 
-def check_mailpit(env: dict[str, str]) -> list[Result]:
-    port = int(env.get("MAILPIT_UI_PORT", "8025"))
+def _http_get(port: int, path: str) -> tuple[int, str]:
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
-        conn.request("GET", "/livez")
-        status = conn.getresponse().status
-        return [Result("mailpit UI responds", status == 200, str(status))]
-    except OSError as exc:
-        return [Result("mailpit UI responds", False, str(exc))]
+        conn.request("GET", path)
+        resp = conn.getresponse()
+        return resp.status, resp.read().decode(errors="replace")
     finally:
         conn.close()
+
+
+def check_mailpit(env: dict[str, str]) -> list[Result]:
+    try:
+        status, _ = _http_get(int(env.get("MAILPIT_UI_PORT", "8025")), "/livez")
+    except OSError as exc:
+        return [Result("mailpit UI responds", False, str(exc))]
+    return [Result("mailpit UI responds", status == 200, str(status))]
+
+
+def check_api(env: dict[str, str]) -> list[Result]:
+    port = int(env.get("API_PORT", "8000"))
+    results: list[Result] = []
+    for path, name in (
+        ("/health", "api /health 200"),
+        ("/ready", "api /ready 200 (db, redis, storage)"),
+    ):
+        try:
+            status, body = _http_get(port, path)
+        except OSError as exc:
+            results.append(Result(name, False, str(exc)))
+            continue
+        results.append(Result(name, status == 200, f"{status} {body[:120]}"))
+    return results
 
 
 def main() -> int:
@@ -333,6 +354,7 @@ def main() -> int:
             Result("clamav detects EICAR test file", False, "skipped: clamav not healthy yet")
         )
     results += check_mailpit(env)
+    results += check_api(env)
 
     width = max(len(r.name) for r in results)
     for r in results:

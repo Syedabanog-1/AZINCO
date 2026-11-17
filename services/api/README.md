@@ -1,3 +1,10 @@
-# services/api
+# azinco-api
 
-FastAPI public REST API. Created in **Step 0.3** (skeleton), extended in 0.5–0.8.
+AZINCO public REST API (FastAPI). See `docs/blueprint/02-architecture.md` §2.5.
+
+```bash
+pip install -e ".[dev]"
+pytest
+mypy
+uvicorn azinco_api.main:create_app --factory --port 8000
+```

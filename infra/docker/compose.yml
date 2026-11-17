@@ -14,6 +14,31 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# Environment shared by the API runtime and its test container. Service hostnames are the
+# compose service names; secrets come from .env.
+x-api-env: &api-env
+  AZINCO_ENV: ${AZINCO_ENV:-local}
+  AZINCO_LOG_LEVEL: ${AZINCO_LOG_LEVEL:-INFO}
+  AZINCO_BASE_CURRENCY: ${AZINCO_BASE_CURRENCY:-PKR}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-azinco}
+  AZINCO_DB_APP_PASSWORD: ${AZINCO_DB_APP_PASSWORD}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  S3_ENDPOINT: http://storage:9000
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY}
+  S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-azinco-documents}
+
+x-api-depends: &api-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  storage-init:
+    condition: service_completed_successfully
+
 services:
   # ---------------------------------------------------------------- PostgreSQL 16 + pgvector
   postgres:
@@ -139,6 +164,48 @@ services:
       timeout: 5s
       retries: 10
     logging: *default-logging
+
+  # ---------------------------------------------------------------- AZINCO API (Step 0.3)
+  api:
+    build:
+      context: ../../services/api
+      target: runtime
+    image: azinco-api:dev
+    restart: unless-stopped
+    depends_on: *api-depends
+    environment: *api-env
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  # Test runner (not started by `up`): docker compose ... --profile test run --rm api-test
+  api-test:
+    profiles: ["test"]
+    build:
+      context: ../../services/api
+      target: dev
+    image: azinco-api:dev-test
+    depends_on: *api-depends
+    environment:
+      <<: *api-env
+      AZINCO_ENV: ci
+      AZINCO_INTEGRATION: "1"
+      # Used only by the negative test proving a privileged role is refused.
+      POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
+      POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+    command: ["sh", "-c", "pytest -p no:cacheprovider && mypy && ruff check azinco_api tests && echo API-TESTS-OK"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   pg_data:
