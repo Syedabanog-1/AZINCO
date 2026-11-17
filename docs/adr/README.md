@@ -15,7 +15,7 @@ Template: `0000-template.md`. Number ADRs sequentially; never edit an Accepted A
 | 0009 | Money & FX — Decimal, NUMERIC(20,4), base PKR | Proposed (DEC-12 resolved) |
 | 0010 | OCR engine | Open (spike in Phase 1) |
 | 0011 | Payment adapter & "Banking Channels" | Proposed |
-| 0012 | Audit store | Proposed |
+| [0012](0012-audit-store.md) | Audit store — append-only, hash-chained Postgres table | **Accepted** (Step 0.8) |
 | 0013 | Hosting & region | Open (DEC-10) |
 | 0014 | Local object storage image (MinIO community images discontinued Oct 2025 → Chainguard MinIO build, swappable via `S3_IMAGE`) | Proposed (Step 0.2) |
 

@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from azinco_api import __version__
+from azinco_api.audit.router import router as audit_router
 from azinco_api.auth.router import router as auth_router
 from azinco_api.core.config import Settings, get_settings
 from azinco_api.core.errors import register_exception_handlers
@@ -60,6 +61,7 @@ def create_app(
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(audit_router)
 
     get_logger("azinco.api").info(
         "api.configured", environment=settings.env.value, docs=settings.docs_enabled

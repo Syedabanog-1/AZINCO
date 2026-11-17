@@ -274,6 +274,31 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
         "SHOW default_transaction_read_only", "azinco_readonly", env["AZINCO_DB_READONLY_PASSWORD"]
     )
     results.append(Result("readonly role is read-only", out.strip() == "on", out.strip()))
+
+    # Step 0.8 — audit log (ADR-0012)
+    code, out = run_sql(
+        "SELECT count(*) FILTER (WHERE NOT v.ok), count(*) FROM "
+        "(SELECT DISTINCT tenant_id FROM audit.audit_events) s, "
+        "LATERAL audit.verify_chain(s.tenant_id) v"
+    )
+    parts = out.strip().split("|") if code == 0 else []
+    results.append(
+        Result(
+            "audit hash chains verify",
+            len(parts) == 2 and parts[0] == "0",
+            f"{parts[1]} stream(s), {parts[0]} broken" if len(parts) == 2 else out,
+        )
+    )
+    code, out = run_sql(
+        "DELETE FROM audit.audit_events", "azinco_app", env["AZINCO_DB_APP_PASSWORD"]
+    )
+    results.append(
+        Result(
+            "app role cannot delete audit events",
+            code != 0 and "permission denied" in out,
+            "blocked" if code != 0 else "UNEXPECTEDLY ALLOWED",
+        )
+    )
     return results
 
 

@@ -16,14 +16,15 @@ SENSITIVE_KEY = re.compile(
 )
 
 
-def _mask(value: Any) -> Any:
+def mask_value(value: Any) -> Any:
+    """Recursively replace values of sensitive keys with '***' (used by logs and audit)."""
     if isinstance(value, Mapping):
         return {
-            k: (MASK if isinstance(k, str) and SENSITIVE_KEY.search(k) else _mask(v))
+            k: (MASK if isinstance(k, str) and SENSITIVE_KEY.search(k) else mask_value(v))
             for k, v in value.items()
         }
     if isinstance(value, list | tuple):
-        return type(value)(_mask(v) for v in value)
+        return type(value)(mask_value(v) for v in value)
     return value
 
 
@@ -35,7 +36,7 @@ def mask_sensitive(
         if SENSITIVE_KEY.search(key):
             event_dict[key] = MASK
         else:
-            event_dict[key] = _mask(event_dict[key])
+            event_dict[key] = mask_value(event_dict[key])
     return event_dict
 
 

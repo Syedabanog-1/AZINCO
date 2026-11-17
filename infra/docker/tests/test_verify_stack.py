@@ -92,6 +92,10 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
             return 1, "ERROR:  permission denied for schema public"
         if "read_only" in sql:
             return 0, "on"
+        if "verify_chain" in sql:
+            return 0, "0|3"
+        if sql.startswith("DELETE FROM audit"):
+            return 1, "ERROR:  permission denied for table audit_events"
         raise AssertionError(sql)
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -118,6 +122,10 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
             return 0, "3"
         if sql.startswith("CREATE TABLE"):
             return 0, "CREATE TABLE"
+        if "verify_chain" in sql:
+            return 0, "1|3"
+        if sql.startswith("DELETE FROM audit"):
+            return 0, "DELETE 0"
         return 0, "off"
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -131,4 +139,6 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
         "database owned by azinco_migrator",
         "app role cannot create in public",
         "readonly role is read-only",
+        "audit hash chains verify",
+        "app role cannot delete audit events",
     }

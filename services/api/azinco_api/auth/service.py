@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from azinco_api.audit.writer import ActorType, record
 from azinco_api.auth import mfa
 from azinco_api.auth.mailer import send_mail, verification_mail
 from azinco_api.auth.passwords import hash_password, validate_password, verify_password
@@ -122,8 +123,13 @@ async def register(
                 ),
                 {"h": hash_token(token), "u": user_id, "exp": datetime.now(UTC) + VERIFICATION_TTL},
             )
+            await record(
+                s, "user.registered", actor_id=user_id, resource_type="user", resource_id=user_id
+            )
     except IntegrityError:
         log.info("auth.register.duplicate_email")  # nothing is sent; response stays identical
+        async with tenant_session(factory, None) as s:
+            await record(s, "auth.register.duplicate_email", actor_type=ActorType.SYSTEM)
         return
     await send_mail(settings, verification_mail(settings, email, token))
     log.info("auth.register.created", user_id=str(user_id))
@@ -134,6 +140,16 @@ async def verify_email(factory: async_sessionmaker[AsyncSession], token: str) ->
         user_id = await s.scalar(
             text("SELECT app.auth_consume_verification_token(:h)"), {"h": hash_token(token)}
         )
+        if user_id is None:
+            await record(s, "auth.email_verification.failed", actor_type=ActorType.SYSTEM)
+        else:
+            await record(
+                s,
+                "user.email_verified",
+                actor_id=user_id,
+                resource_type="user",
+                resource_id=user_id,
+            )
     log.info("auth.verify_email", ok=user_id is not None)
     return user_id is not None
 
@@ -156,15 +172,18 @@ async def login(
 
     password_ok = verify_password(row["password_hash"] if row else None, password)
     if row is None:
+        await _audit_only(factory, "auth.login.failed", None, {"reason": "unknown_account"})
         raise AuthError()
     user_id: uuid.UUID = row["id"]
     now = datetime.now(UTC)
     if row["locked_until"] is not None and row["locked_until"] > now:
+        await _audit_only(factory, "auth.login.blocked", user_id, {"reason": "locked"})
         raise AuthError("Too many failed attempts. Try again later.", 429)
     if not password_ok:
-        await _record_failure(factory, settings, user_id)
+        await _record_failure(factory, settings, user_id, "wrong_password")
         raise AuthError()
     if row["status"] != UserStatus.ACTIVE.value:
+        await _audit_only(factory, "auth.login.blocked", user_id, {"reason": str(row["status"])})
         msg = (
             "Please confirm your e-mail address first."
             if row["status"] == UserStatus.PENDING_VERIFICATION.value
@@ -178,7 +197,7 @@ async def login(
             raise MfaCodeRequiredError()
         secret = mfa.decrypt_secret(settings.mfa_encryption_key, row["mfa_secret_enc"])
         if not mfa.verify_code(secret, totp_code):
-            await _record_failure(factory, settings, user_id)
+            await _record_failure(factory, settings, user_id, "wrong_mfa_code")
             raise AuthError()
         mfa_verified = True
 
@@ -197,6 +216,14 @@ async def login(
                 "exp": now + timedelta(hours=settings.session_absolute_hours),
             },
         )
+        await record(
+            s,
+            "auth.login.succeeded",
+            actor_id=user_id,
+            resource_type="user",
+            resource_id=user_id,
+            details={"mfa_verified": mfa_verified},
+        )
     principal = await resolve_session(factory, settings, token)
     if principal is None:  # pragma: no cover - would mean the session we just made is invalid
         raise AuthError()
@@ -204,8 +231,29 @@ async def login(
     return LoginResult(token=token, principal=principal)
 
 
+async def _audit_only(
+    factory: async_sessionmaker[AsyncSession],
+    action: str,
+    user_id: uuid.UUID | None,
+    details: dict[str, object],
+) -> None:
+    async with tenant_session(factory, None) as s:
+        await record(
+            s,
+            action,
+            actor_type=ActorType.HUMAN if user_id else ActorType.SYSTEM,
+            actor_id=user_id,
+            resource_type="user" if user_id else None,
+            resource_id=user_id,
+            details=details,
+        )
+
+
 async def _record_failure(
-    factory: async_sessionmaker[AsyncSession], settings: Settings, user_id: uuid.UUID
+    factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    user_id: uuid.UUID,
+    reason: str,
 ) -> None:
     async with tenant_session(factory, None) as s:
         await s.execute(
@@ -215,6 +263,14 @@ async def _record_failure(
                 "max": settings.login_max_failures,
                 "mins": settings.login_lockout_minutes,
             },
+        )
+        await record(
+            s,
+            "auth.login.failed",
+            actor_id=user_id,
+            resource_type="user",
+            resource_id=user_id,
+            details={"reason": reason},
         )
     log.info("auth.login.failure", user_id=str(user_id))
 
@@ -296,6 +352,13 @@ async def logout(factory: async_sessionmaker[AsyncSession], principal: Principal
             text("UPDATE app.sessions SET revoked_at = now() WHERE id = :sid"),
             {"sid": principal.session_id},
         )
+        await record(
+            s,
+            "auth.logout",
+            actor_id=principal.user_id,
+            resource_type="session",
+            resource_id=principal.session_id,
+        )
     log.info("auth.logout", user_id=str(principal.user_id))
 
 
@@ -319,6 +382,13 @@ async def mfa_begin(
             text("UPDATE app.users SET mfa_secret_enc = :sec WHERE id = :u"),
             {"sec": encrypted, "u": principal.user_id},
         )
+        await record(
+            s,
+            "auth.mfa.setup_started",
+            actor_id=principal.user_id,
+            resource_type="user",
+            resource_id=principal.user_id,
+        )
     uri = mfa.provisioning_uri(secret, principal.email, settings.mfa_issuer)
     return MfaSetup(secret=secret, otpauth_uri=uri, qr_svg=mfa.qr_svg(uri))
 
@@ -333,13 +403,23 @@ async def mfa_confirm(
         if not enc:
             raise AuthError("Start MFA setup first.", 409)
         secret = mfa.decrypt_secret(settings.mfa_encryption_key, enc)
-        if not mfa.verify_code(secret, code):
-            raise AuthError("That code is not valid. Check your device time and try again.", 400)
+        code_ok = mfa.verify_code(secret, code)
+    if not code_ok:
+        await _audit_only(factory, "auth.mfa.confirm_failed", principal.user_id, {})
+        raise AuthError("That code is not valid. Check your device time and try again.", 400)
+    async with tenant_session(factory, None, principal.user_id) as s:
         await s.execute(
             text("UPDATE app.users SET mfa_enabled = true WHERE id = :u"), {"u": principal.user_id}
         )
         await s.execute(
             text("UPDATE app.sessions SET mfa_verified = true WHERE id = :sid"),
             {"sid": principal.session_id},
+        )
+        await record(
+            s,
+            "auth.mfa.enabled",
+            actor_id=principal.user_id,
+            resource_type="user",
+            resource_id=principal.user_id,
         )
     log.info("auth.mfa.enabled", user_id=str(principal.user_id))

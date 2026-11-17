@@ -24,6 +24,7 @@ alembic downgrade -1      # roll back one revision
 
 | Revision | Content |
 |---|---|
+| 0004 | Audit log: schema `audit`, hash-chained `audit_events`, `append_event()` / `verify_chain()`, append-only triggers (ADR-0012) |
 | 0003 | Auth: `sessions`, `email_verification_tokens`, lockout/MFA columns, SECURITY DEFINER auth functions (ADR-0006) |
 | 0002 | Row-Level Security: ENABLE+FORCE on all `app` tables, `app.current_tenant_id()` / `app.current_user_id()`, per-command policies (ADR-0003) |
 | 0001 | schema `app`: `tenants`, `users`, `tenant_memberships`, `platform_roles`, 7 enums, `updated_at` trigger, least-privilege grants (no DELETE for runtime roles) |
@@ -39,3 +40,16 @@ alembic downgrade -1      # roll back one revision
 | `GET /api/v1/me` | Current user, workspaces, roles and permissions |
 | `POST /api/v1/auth/mfa/setup` / `confirm` | TOTP enrolment (QR code + manual key) |
 | `GET /api/v1/tenants/{id}` | Example of the full chain: session → MFA policy → RBAC → RLS |
+
+## Audit log (Step 0.8, ADR-0012)
+
+Every auth action is written to `audit.audit_events` in the same transaction (if the audit write
+fails, the action fails). Rows are hash-chained per tenant and can never be updated or deleted.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/tenants/{id}/audit-events?limit=50&before_seq=` | Newest-first page of the tenant's audit trail (`audit.read`, MFA) |
+| `GET /api/v1/tenants/{id}/audit-events/verify` | Recompute the hash chain: `{events, ok, first_bad_seq}` |
+
+From code: `await azinco_api.audit.record(session, "domain.action", tenant_id=..., details={...})`.
+Sensitive keys in `details` are masked automatically.

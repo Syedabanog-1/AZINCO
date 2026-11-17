@@ -72,9 +72,9 @@ python infra/docker/verify_stack.py
 | 0.3 | FastAPI skeleton (`/health`, `/ready`) | Done — verified |
 | 0.4 | Next.js web UI skeleton (home, live status) | Done — verified (web 3/3 checks) |
 | 0.5 | PostgreSQL + Alembic + Money | Done — verified 26/26 |
-| 0.6 | Tenant isolation (RLS) | Done (verify with run-step-0.7) |
-| 0.7 | Auth, MFA & RBAC — sign in works | Done (verify on your machine) |
-| 0.8 | Audit log | Pending |
+| 0.6 | Tenant isolation (RLS) | Done (verify with run-step-0.8) |
+| 0.7 | Auth, MFA & RBAC — sign in works | Done (verify with run-step-0.8) |
+| 0.8 | Audit log (hash-chained, append-only) | Done (verify with run-step-0.8) |
 | 0.9 | Ledger Service skeleton | Pending |
 | 0.10 | Rule engine, Gateway, graph skeletons | Pending |
 | 0.11 | CI pipeline | Pending |
