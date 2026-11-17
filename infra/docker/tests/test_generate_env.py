@@ -56,5 +56,15 @@ def test_secrets_are_unique_and_long() -> None:
     assert all(len(v) >= 32 for v in secret_values)
 
 
+def test_mfa_key_is_a_valid_fernet_key() -> None:
+    import base64
+
+    text, _ = ge.render(EXAMPLE_TEXT)
+    line = next(x for x in text.splitlines() if x.startswith("AZINCO_MFA_ENCRYPTION_KEY="))
+    key = line.split("=", 1)[1].split()[0]
+    assert len(key) == 44
+    assert len(base64.urlsafe_b64decode(key)) == 32
+
+
 def test_two_runs_differ() -> None:
     assert ge.render(EXAMPLE_TEXT)[0] != ge.render(EXAMPLE_TEXT)[0]

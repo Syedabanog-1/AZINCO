@@ -11,6 +11,8 @@ Secrets are written only to .env (git-ignored) and are never printed.
 from __future__ import annotations
 
 import argparse
+import base64
+import os
 import re
 import secrets
 import sys
@@ -25,7 +27,12 @@ PLACEHOLDER = re.compile(r"^(?P<key>[A-Z0-9_]+)=change-me[^\s#]*(?P<rest>.*)$")
 URL_SAFE_ALNUM = {"REDIS_PASSWORD", "S3_ACCESS_KEY"}
 
 
+FERNET_KEYS = {"AZINCO_MFA_ENCRYPTION_KEY"}
+
+
 def new_secret(key: str) -> str:
+    if key in FERNET_KEYS:
+        return base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
     if key in URL_SAFE_ALNUM:
         return secrets.token_hex(16)
     return secrets.token_urlsafe(32).replace("-", "A").replace("_", "B")

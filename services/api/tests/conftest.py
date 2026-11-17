@@ -13,6 +13,9 @@ from azinco_api.core.config import Environment, Settings
 from azinco_api.health.checks import ReadinessCheck
 from azinco_api.main import create_app
 
+# Fixed [MOCK] key for tests only (generated with cryptography.fernet.Fernet.generate_key()).
+TEST_FERNET_KEY = "Y2VJd3l6cHJ0b3lJdlE5bmlHdmJ4S2hQUTN0d3VmM0E="
+
 
 def make_settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
@@ -24,6 +27,7 @@ def make_settings(**overrides: object) -> Settings:
         "s3_access_key": SecretStr("test-access"),
         "s3_secret_key": SecretStr("test-secret-key"),
         "readiness_timeout_seconds": 0.5,
+        "mfa_encryption_key": SecretStr(TEST_FERNET_KEY),
     }
     values.update(overrides)
     return Settings.model_validate(values)

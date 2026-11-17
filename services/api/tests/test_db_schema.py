@@ -7,49 +7,32 @@ transaction that is rolled back, so the runtime role never needs DELETE rights.
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import AsyncIterator
 
 import asyncpg
 import pytest
 
-from azinco_api.core.config import Settings
+from tests.db_helpers import (
+    DB_INTEGRATION,
+    connect,
+    create_tenant,
+    create_user,
+    rollback_connection,
+    set_context,
+)
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        os.environ.get("AZINCO_INTEGRATION_DB") != "1", reason="set AZINCO_INTEGRATION_DB=1"
-    ),
-]
-
-
-async def _connect(user: str, password: str) -> asyncpg.Connection:
-    s = Settings()
-    return await asyncpg.connect(
-        host=s.postgres_host,
-        port=s.postgres_port,
-        database=s.postgres_db,
-        user=user,
-        password=password,
-    )
+pytestmark = [pytest.mark.integration, DB_INTEGRATION]
 
 
 @pytest.fixture
 async def app_conn() -> AsyncIterator[asyncpg.Connection]:
-    s = Settings()
-    conn = await _connect(s.db_app_user, s.db_app_password.get_secret_value())
-    tx = conn.transaction()
-    await tx.start()
-    try:
+    async for conn in rollback_connection():
         yield conn
-    finally:
-        await tx.rollback()
-        await conn.close()
 
 
-async def _new_tenant(conn: asyncpg.Connection, name: str = "Synthetic Traders") -> object:
-    return await conn.fetchval(
-        "INSERT INTO app.tenants (name, home_jurisdiction) VALUES ($1, 'PK') RETURNING id", name
-    )
+async def _new_tenant(conn: asyncpg.Connection, name: str = "Synthetic Traders") -> uuid.UUID:
+    return await create_tenant(conn, name)
 
 
 async def test_tenant_defaults(app_conn: asyncpg.Connection) -> None:
@@ -67,51 +50,45 @@ async def test_tenant_defaults(app_conn: asyncpg.Connection) -> None:
 
 async def test_user_and_membership(app_conn: asyncpg.Connection) -> None:
     tid = await _new_tenant(app_conn)
-    uid = await app_conn.fetchval(
-        "INSERT INTO app.users (email, display_name, user_type) "
-        "VALUES ('Owner@Example.test', 'Owner', 'client') RETURNING id"
-    )
-    await app_conn.execute(
-        "INSERT INTO app.tenant_memberships (tenant_id, user_id, role) "
-        "VALUES ($1, $2, 'client_owner')",
-        tid,
-        uid,
-    )
+    uid = await create_user(app_conn, "Owner@Example.test", tid)
     status = await app_conn.fetchval("SELECT status FROM app.users WHERE id = $1", uid)
     assert status == "pending_verification"
 
 
 async def test_email_is_case_insensitive_unique(app_conn: asyncpg.Connection) -> None:
-    await app_conn.execute(
-        "INSERT INTO app.users (email, display_name, user_type) VALUES ('a@x.test', 'A', 'client')"
-    )
+    tid = await _new_tenant(app_conn)
+    await create_user(app_conn, "a@x.test", tid)
     with pytest.raises(asyncpg.UniqueViolationError):
-        await app_conn.execute(
-            "INSERT INTO app.users (email, display_name, user_type) "
-            "VALUES ('A@X.TEST', 'B', 'client')"
-        )
+        await create_user(app_conn, "A@X.TEST", tid)
 
 
 @pytest.mark.parametrize(
     "sql",
     [
-        "INSERT INTO app.tenants (name, home_jurisdiction) VALUES ('X', 'pk')",
-        "INSERT INTO app.tenants (name, home_jurisdiction) VALUES ('   ', 'PK')",
-        "INSERT INTO app.tenants (name, home_jurisdiction, base_currency) VALUES ('X', 'PK', 'rs')",
-        "INSERT INTO app.users (email, display_name, user_type) "
-        "VALUES ('no-at-sign', 'X', 'client')",
+        "INSERT INTO app.tenants (id, name, home_jurisdiction) VALUES ($1, 'X', 'pk')",
+        "INSERT INTO app.tenants (id, name, home_jurisdiction) VALUES ($1, '   ', 'PK')",
+        "INSERT INTO app.tenants (id, name, home_jurisdiction, base_currency) "
+        "VALUES ($1, 'X', 'PK', 'rs')",
+        "INSERT INTO app.users (id, email, display_name, user_type) "
+        "VALUES ($1, 'no-at-sign', 'X', 'client')",
     ],
 )
 async def test_check_constraints(app_conn: asyncpg.Connection, sql: str) -> None:
+    # Row id == context, so RLS allows the row and the CHECK constraint is what rejects it.
+    row_id = uuid.uuid4()
+    await set_context(app_conn, row_id, row_id)
     with pytest.raises(asyncpg.CheckViolationError):
-        await app_conn.execute(sql)
+        await app_conn.execute(sql, row_id)
 
 
 async def test_invalid_enum_value_rejected(app_conn: asyncpg.Connection) -> None:
+    row_id = uuid.uuid4()
+    await set_context(app_conn, row_id)
     with pytest.raises(asyncpg.InvalidTextRepresentationError):
         await app_conn.execute(
-            "INSERT INTO app.tenants (name, home_jurisdiction, funds_handling) "
-            "VALUES ('X', 'PK', 'escrow')"
+            "INSERT INTO app.tenants (id, name, home_jurisdiction, funds_handling) "
+            "VALUES ($1, 'X', 'PK', 'escrow')",
+            row_id,
         )
 
 
@@ -152,7 +129,7 @@ async def test_readonly_role_cannot_write() -> None:
     password = os.environ.get("AZINCO_DB_READONLY_PASSWORD")
     if not password:
         pytest.skip("AZINCO_DB_READONLY_PASSWORD not provided")
-    conn = await _connect("azinco_readonly", password)
+    conn = await connect("azinco_readonly", password)
     try:
         assert await conn.fetchval("SELECT count(*) >= 0 FROM app.tenants")
         with pytest.raises(

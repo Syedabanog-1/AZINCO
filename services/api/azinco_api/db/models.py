@@ -21,7 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, UUID
+from sqlalchemy.dialects.postgresql import BYTEA, CITEXT, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SCHEMA = "app"
@@ -161,6 +161,12 @@ class User(Base):
     mfa_enabled: Mapped[bool] = mapped_column(nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
+    # --- authentication (revision 0003)
+    mfa_secret_enc: Mapped[str | None] = mapped_column(Text)
+    failed_login_count: Mapped[int] = mapped_column(nullable=False, server_default=text("0"))
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TenantMembership(Base):
@@ -192,4 +198,35 @@ class PlatformRoleGrant(Base):
     granted_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT")
     )
+    created_at: Mapped[datetime] = _created_at()
+
+
+class Session(Base):
+    """Server-side login session; the cookie carries a random token, the DB only its SHA-256."""
+
+    __tablename__ = "sessions"
+    __table_args__ = (CheckConstraint("octet_length(token_hash) = 32", name="token_hash_sha256"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    token_hash: Mapped[bytes] = mapped_column(BYTEA, nullable=False, unique=True)
+    mfa_verified: Mapped[bool] = mapped_column(nullable=False, server_default=text("false"))
+    created_at: Mapped[datetime] = _created_at()
+    last_seen_at: Mapped[datetime] = _created_at()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+    __table_args__ = (CheckConstraint("octet_length(token_hash) = 32", name="token_hash_sha256"),)
+
+    token_hash: Mapped[bytes] = mapped_column(BYTEA, primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()

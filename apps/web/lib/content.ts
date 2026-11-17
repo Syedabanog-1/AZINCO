@@ -61,12 +61,7 @@ export type PlannedInterface = {
   items: readonly string[];
 };
 
-export const PLANNED: Record<"login" | "dashboard" | "review" | "admin", PlannedInterface> = {
-  login: {
-    title: "Sign in & registration",
-    phase: "Step 0.7 — authentication with MFA",
-    items: ["Email + password (Argon2id)", "TOTP multi-factor authentication", "Session management"],
-  },
+export const PLANNED: Record<"dashboard" | "review" | "admin", PlannedInterface> = {
   dashboard: {
     title: "Client dashboard",
     phase: "Phase 1 — MVP",

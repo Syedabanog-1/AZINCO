@@ -18,3 +18,10 @@ test("planned interfaces are clearly labelled", async ({ page }) => {
   await page.goto("/review");
   await expect(page.getByText(/Not available yet/)).toBeVisible();
 });
+
+test("sign-in page has the login form", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByLabel("E-mail")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create an account" })).toBeVisible();
+});

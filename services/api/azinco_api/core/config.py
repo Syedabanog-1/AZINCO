@@ -63,6 +63,21 @@ class Settings(BaseSettings):
     s3_secret_key: SecretStr = Field(alias="S3_SECRET_KEY")
     s3_bucket_documents: str = Field(default="azinco-documents", alias="S3_BUCKET_DOCUMENTS")
 
+    # ---- authentication (Step 0.7, ADR-0006 option a)
+    session_idle_minutes: int = Field(default=60, alias="AZINCO_SESSION_TTL_MINUTES", ge=5, le=720)
+    session_absolute_hours: int = Field(
+        default=12, alias="AZINCO_SESSION_ABSOLUTE_HOURS", ge=1, le=72
+    )
+    login_max_failures: int = Field(default=5, alias="AZINCO_LOGIN_MAX_FAILURES", ge=3, le=20)
+    login_lockout_minutes: int = Field(default=15, alias="AZINCO_LOGIN_LOCKOUT_MINUTES", ge=1)
+    mfa_encryption_key: SecretStr | None = Field(default=None, alias="AZINCO_MFA_ENCRYPTION_KEY")
+    mfa_issuer: str = Field(default="AZINCO", alias="AZINCO_MFA_ISSUER")
+    public_web_url: str = Field(default="http://localhost:3000", alias="AZINCO_PUBLIC_WEB_URL")
+    mail_mode: str = Field(default="smtp", alias="AZINCO_MAIL_MODE", pattern="^(smtp|capture)$")
+    smtp_host: str = Field(default="localhost", alias="SMTP_HOST")
+    smtp_port: int = Field(default=1025, alias="SMTP_PORT")
+    mail_from: str = Field(default="AZINCO <no-reply@azinco.local>", alias="AZINCO_MAIL_FROM")
+
     readiness_timeout_seconds: float = Field(
         default=5.0, alias="AZINCO_READINESS_TIMEOUT_SECONDS", gt=0, le=30
     )
@@ -104,7 +119,14 @@ class Settings(BaseSettings):
     def _no_placeholder_secrets_outside_local(self) -> Settings:
         if self.env in (Environment.LOCAL, Environment.CI):
             return self
+        if self.mfa_encryption_key is None:
+            raise ValueError(f"AZINCO_MFA_ENCRYPTION_KEY is required in {self.env}")
+        if self.mail_mode == "capture":
+            raise ValueError(
+                f"AZINCO_MAIL_MODE=capture is a test-only [MOCK] mode, not for {self.env}"
+            )
         secrets = {
+            "AZINCO_MFA_ENCRYPTION_KEY": self.mfa_encryption_key,
             "AZINCO_DB_APP_PASSWORD": self.db_app_password,
             "REDIS_URL": self.redis_url,
             "S3_ACCESS_KEY": self.s3_access_key,
@@ -131,6 +153,11 @@ class Settings(BaseSettings):
             port=self.postgres_port,
             database=self.postgres_db,
         )
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Secure cookies everywhere except plain-http local development and CI."""
+        return self.env not in (Environment.LOCAL, Environment.CI)
 
     @property
     def docs_enabled(self) -> bool:

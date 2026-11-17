@@ -37,6 +37,7 @@ def problem_response(
     detail: str | None = None,
     errors: list[dict[str, Any]] | None = None,
     headers: dict[str, str] | None = None,
+    code: str | None = None,
 ) -> JSONResponse:
     body: dict[str, Any] = {
         "type": "about:blank",
@@ -48,6 +49,8 @@ def problem_response(
         body["detail"] = detail
     if errors:
         body["errors"] = errors
+    if code:
+        body["code"] = code  # machine-readable reason (RFC 9457 extension member)
     request_id = _request_id(request)
     if request_id:
         body["request_id"] = request_id
@@ -61,7 +64,14 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
     if detail in (HTTPStatus(exc.status_code).phrase, status_title(exc.status_code)):
         detail = None
     headers = dict(exc.headers) if exc.headers else None
-    return problem_response(request, exc.status_code, detail, headers=headers)
+    code = getattr(exc, "code", None)
+    return problem_response(
+        request,
+        exc.status_code,
+        detail,
+        headers=headers,
+        code=code if isinstance(code, str) else None,
+    )
 
 
 async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:

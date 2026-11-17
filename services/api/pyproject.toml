@@ -20,6 +20,11 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.36,<2.1",
   "alembic>=1.14,<2",
   "azinco-common",
+  "argon2-cffi>=23.1",
+  "pyotp>=2.9",
+  "cryptography>=43",
+  "segno>=1.6",
+  "email-validator>=2.2",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +58,7 @@ known-first-party = ["azinco_api", "azinco_common", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+"azinco_api/db/migrations/versions/**" = ["S608"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

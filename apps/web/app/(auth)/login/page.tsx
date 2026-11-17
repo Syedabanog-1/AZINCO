@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { PlannedInterfacePage } from "@/components/planned-interface";
-import { PLANNED } from "@/lib/content";
+import { AuthCard } from "@/components/auth-ui";
+import { LoginForm } from "@/components/forms/login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default function Page() {
-  return <PlannedInterfacePage plan={PLANNED.login} />;
+export default function LoginPage() {
+  return (
+    <AuthCard title="Sign in" subtitle="Clients, reviewers and staff sign in here.">
+      <LoginForm />
+    </AuthCard>
+  );
 }

@@ -25,6 +25,7 @@ known-first-party = ["azinco_api", "azinco_common", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106"]  # asserts and fake credentials in tests
+"**/migrations/versions/**" = ["S608"]  # DDL f-strings use constant schema names only
 "infra/ci/**" = ["S603", "S607"]  # CI scripts may call git
 
 [tool.mypy]

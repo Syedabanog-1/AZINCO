@@ -24,4 +24,18 @@ alembic downgrade -1      # roll back one revision
 
 | Revision | Content |
 |---|---|
+| 0003 | Auth: `sessions`, `email_verification_tokens`, lockout/MFA columns, SECURITY DEFINER auth functions (ADR-0006) |
+| 0002 | Row-Level Security: ENABLE+FORCE on all `app` tables, `app.current_tenant_id()` / `app.current_user_id()`, per-command policies (ADR-0003) |
 | 0001 | schema `app`: `tenants`, `users`, `tenant_memberships`, `platform_roles`, 7 enums, `updated_at` trigger, least-privilege grants (no DELETE for runtime roles) |
+
+## Authentication (Step 0.7, ADR-0006)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/auth/register` | Create a pending account; sends a confirmation e-mail (Mailpit locally). Same answer whether or not the e-mail exists |
+| `POST /api/v1/auth/verify-email` | Activate the account with the e-mailed token |
+| `POST /api/v1/auth/login` | E-mail + password (+ 6-digit code when MFA is on). Sets `azinco_session` (HttpOnly) and `azinco_csrf` |
+| `POST /api/v1/auth/logout` | Revoke the session (needs `X-CSRF-Token`) |
+| `GET /api/v1/me` | Current user, workspaces, roles and permissions |
+| `POST /api/v1/auth/mfa/setup` / `confirm` | TOTP enrolment (QR code + manual key) |
+| `GET /api/v1/tenants/{id}` | Example of the full chain: session → MFA policy → RBAC → RLS |

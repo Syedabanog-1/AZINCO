@@ -20,7 +20,7 @@ describe("public content", () => {
   });
 
   it("has a plan for every placeholder interface", () => {
-    for (const key of ["login", "dashboard", "review", "admin"] as const) {
+    for (const key of ["dashboard", "review", "admin"] as const) {
       expect(content.PLANNED[key].items.length).toBeGreaterThan(0);
     }
   });

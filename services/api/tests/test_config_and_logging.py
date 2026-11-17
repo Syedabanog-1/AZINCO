@@ -30,6 +30,7 @@ def test_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("S3_ACCESS_KEY", "a" * 20)
     monkeypatch.setenv("S3_SECRET_KEY", "s" * 20)
     monkeypatch.setenv("AZINCO_LOG_LEVEL", "debug")
+    monkeypatch.setenv("AZINCO_MFA_ENCRYPTION_KEY", "Y2VJd3l6cHJ0b3lJdlE5bmlHdmJ4S2hQUTN0d3VmM0E=")
     s = Settings()
     assert s.env is Environment.DEV
     assert s.log_level == "DEBUG"
@@ -84,6 +85,21 @@ def test_invalid_base_currency_rejected() -> None:
 def test_placeholder_secret_rejected_outside_local(env: Environment) -> None:
     with pytest.raises(ValidationError, match="placeholder"):
         make_settings(env=env, s3_secret_key=SecretStr("change-me-secret-key"))
+
+
+def test_mfa_key_required_outside_local() -> None:
+    with pytest.raises(ValidationError, match="AZINCO_MFA_ENCRYPTION_KEY"):
+        make_settings(env=Environment.PROD, mfa_encryption_key=None)
+
+
+def test_capture_mail_mode_rejected_outside_local() -> None:
+    with pytest.raises(ValidationError, match="capture"):
+        make_settings(env=Environment.STAGING, mail_mode="capture")
+
+
+def test_cookie_secure_outside_local() -> None:
+    assert make_settings(env=Environment.STAGING).cookie_secure is True
+    assert make_settings(env=Environment.LOCAL).cookie_secure is False
 
 
 def test_placeholder_allowed_in_local() -> None:

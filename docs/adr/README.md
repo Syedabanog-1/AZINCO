@@ -6,10 +6,10 @@ Template: `0000-template.md`. Number ADRs sequentially; never edit an Accepted A
 |---|---|---|
 | 0001 | Repo & service topology (monorepo, modular-monolith API + ledger + worker) | Proposed (Step 0.12) |
 | 0002 | Orchestration framework (LangGraph + Postgres checkpointer) | Proposed |
-| 0003 | Tenant isolation (shared schema + RLS + `SET LOCAL`) | Proposed |
+| [0003](0003-tenant-isolation.md) | Tenant isolation (shared schema + RLS + transaction-local context) | **Accepted** (Step 0.6) |
 | 0004 | Model Gateway | Proposed |
 | 0005 | Queue (Redis Streams) | Proposed |
-| 0006 | Authentication — FastAPI-native (option a) | Proposed — **assumed** pending owner confirmation (DEC-11) |
+| [0006](0006-authentication.md) | Authentication — FastAPI-native sessions, Argon2id, TOTP MFA | **Accepted** (Step 0.7) |
 | 0007 | Encryption & keys | Proposed |
 | 0008 | Rule-pack format | Proposed |
 | 0009 | Money & FX — Decimal, NUMERIC(20,4), base PKR | Proposed (DEC-12 resolved) |

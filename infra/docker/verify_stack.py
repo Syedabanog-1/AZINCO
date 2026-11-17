@@ -237,7 +237,27 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
     code, out = run_sql(
         "SELECT count(*) FROM pg_tables WHERE schemaname = 'app' AND tableowner = 'azinco_migrator'"
     )
-    results.append(Result("app schema tables owned by migrator", out.strip() == "4", out.strip()))
+    results.append(Result("app schema tables owned by migrator", out.strip() == "6", out.strip()))
+    code, out = run_sql(
+        "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'app' AND c.relkind = 'r' "
+        "AND c.relrowsecurity AND c.relforcerowsecurity"
+    )
+    results.append(
+        Result("RLS enabled + forced on app tables", out.strip() == "6", out.strip() or out)
+    )
+    code, out = run_sql(
+        "SELECT count(*) FROM app.tenants",
+        "azinco_app",
+        env["AZINCO_DB_APP_PASSWORD"],
+    )
+    results.append(
+        Result(
+            "app role without tenant context sees 0 rows",
+            code == 0 and out.strip() == "0",
+            out.strip() or out,
+        )
+    )
 
     code, out = run_sql(
         "CREATE TABLE public.azinco_probe(i int)", "azinco_app", env["AZINCO_DB_APP_PASSWORD"]
@@ -348,6 +368,7 @@ def check_web(env: dict[str, str]) -> list[Result]:
     for path, name, needle in (
         ("/", "web home page renders", "Experts approve."),
         ("/status", "web status page: all systems operational", "All systems operational"),
+        ("/login", "web sign-in page renders", "Clients, reviewers and staff sign in here."),
     ):
         try:
             status, body = _http_get(port, path)

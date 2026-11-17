@@ -83,7 +83,11 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
         if "alembic_version" in sql:
             return 0, "0001"
         if "pg_tables" in sql:
-            return 0, "4"
+            return 0, "6"
+        if "relforcerowsecurity" in sql:
+            return 0, "6"
+        if "FROM app.tenants" in sql:
+            return 0, "0"
         if sql.startswith("CREATE TABLE"):
             return 1, "ERROR:  permission denied for schema public"
         if "read_only" in sql:
@@ -108,6 +112,10 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
             return 1, 'ERROR:  relation "public.alembic_version" does not exist'
         if "pg_tables" in sql:
             return 0, "0"
+        if "relforcerowsecurity" in sql:
+            return 0, "0"
+        if "FROM app.tenants" in sql:
+            return 0, "3"
         if sql.startswith("CREATE TABLE"):
             return 0, "CREATE TABLE"
         return 0, "off"
@@ -117,6 +125,8 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
     assert failed == {
         "migrations applied (alembic)",
         "app schema tables owned by migrator",
+        "RLS enabled + forced on app tables",
+        "app role without tenant context sees 0 rows",
         "no superuser / BYPASSRLS roles",
         "database owned by azinco_migrator",
         "app role cannot create in public",
