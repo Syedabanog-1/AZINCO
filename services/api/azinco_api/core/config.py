@@ -11,6 +11,7 @@ from typing import Annotated
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 _LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 _PLACEHOLDER_PREFIX = "change-me"
@@ -48,6 +49,11 @@ class Settings(BaseSettings):
     postgres_db: str = Field(default="azinco", alias="POSTGRES_DB")
     db_app_user: str = Field(default="azinco_app", alias="AZINCO_DB_APP_USER")
     db_app_password: SecretStr = Field(alias="AZINCO_DB_APP_PASSWORD")
+    # Only the one-shot `migrate` container receives these (Alembic runs as the owner role).
+    db_migrator_user: str = Field(default="azinco_migrator", alias="AZINCO_DB_MIGRATOR_USER")
+    db_migrator_password: SecretStr | None = Field(
+        default=None, alias="AZINCO_DB_MIGRATOR_PASSWORD"
+    )
 
     redis_url: SecretStr = Field(alias="REDIS_URL")
 
@@ -108,6 +114,23 @@ class Settings(BaseSettings):
         if bad:
             raise ValueError(f"placeholder secrets not allowed in {self.env}: {', '.join(bad)}")
         return self
+
+    def database_url(self, *, migrator: bool = False) -> URL:
+        """SQLAlchemy URL for the app role (default) or the migration owner role."""
+        if migrator:
+            if self.db_migrator_password is None:
+                raise ValueError("AZINCO_DB_MIGRATOR_PASSWORD is required for migrations")
+            user, password = self.db_migrator_user, self.db_migrator_password
+        else:
+            user, password = self.db_app_user, self.db_app_password
+        return URL.create(
+            "postgresql+asyncpg",
+            username=user,
+            password=password.get_secret_value(),
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
 
     @property
     def docs_enabled(self) -> bool:

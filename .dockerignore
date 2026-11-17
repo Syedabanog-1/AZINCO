@@ -1,0 +1,21 @@
+# Root build context (services/api image). Keep secrets, data and heavy folders out.
+.git
+.data
+.env
+.env.*
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+**/*.egg-info
+apps
+docs
+tools
+setup
+infra
+tests
+rule-packs

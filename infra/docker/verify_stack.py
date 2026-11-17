@@ -230,6 +230,15 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
         Result("database owned by azinco_migrator", out.strip() == "azinco_migrator", out.strip())
     )
 
+    code, out = run_sql("SELECT version_num FROM public.alembic_version")
+    results.append(
+        Result("migrations applied (alembic)", code == 0 and out.strip() != "", out.strip() or out)
+    )
+    code, out = run_sql(
+        "SELECT count(*) FROM pg_tables WHERE schemaname = 'app' AND tableowner = 'azinco_migrator'"
+    )
+    results.append(Result("app schema tables owned by migrator", out.strip() == "4", out.strip()))
+
     code, out = run_sql(
         "CREATE TABLE public.azinco_probe(i int)", "azinco_app", env["AZINCO_DB_APP_PASSWORD"]
     )

@@ -35,6 +35,8 @@ x-api-env: &api-env
 x-api-depends: &api-depends
   postgres:
     condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
   redis:
     condition: service_healthy
   storage-init:
@@ -167,9 +169,33 @@ services:
     logging: *default-logging
 
   # ---------------------------------------------------------------- AZINCO API (Step 0.3)
+  # One-shot: applies Alembic migrations as the owner role before the API starts.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+      target: runtime
+    image: azinco-api:dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      AZINCO_DB_MIGRATOR_PASSWORD: ${AZINCO_DB_MIGRATOR_PASSWORD}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
   api:
     build:
-      context: ../../services/api
+      context: ../..
+      dockerfile: services/api/Dockerfile
       target: runtime
     image: azinco-api:dev
     restart: unless-stopped
@@ -211,7 +237,8 @@ services:
   api-test:
     profiles: ["test"]
     build:
-      context: ../../services/api
+      context: ../..
+      dockerfile: services/api/Dockerfile
       target: dev
     image: azinco-api:dev-test
     depends_on: *api-depends
@@ -219,10 +246,21 @@ services:
       <<: *api-env
       AZINCO_ENV: ci
       AZINCO_INTEGRATION: "1"
+      AZINCO_INTEGRATION_DB: "1"
+      AZINCO_DB_MIGRATOR_PASSWORD: ${AZINCO_DB_MIGRATOR_PASSWORD}
+      AZINCO_DB_READONLY_PASSWORD: ${AZINCO_DB_READONLY_PASSWORD}
       # Used only by the negative test proving a privileged role is refused.
       POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
       POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
-    command: ["sh", "-c", "pytest -p no:cacheprovider && mypy && ruff check --no-cache azinco_api tests && echo API-TESTS-OK"]
+    command:
+      - sh
+      - -c
+      - >-
+        alembic check
+        && pytest -p no:cacheprovider tests common_tests
+        && mypy
+        && ruff check --no-cache azinco_api tests
+        && echo API-TESTS-OK
     read_only: true
     tmpfs:
       - /tmp

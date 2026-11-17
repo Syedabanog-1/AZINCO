@@ -80,6 +80,10 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
             return 0, "\n".join(f"{r}|f|f" for r in vs.EXPECTED_ROLES)
         if "datdba" in sql:
             return 0, "azinco_migrator"
+        if "alembic_version" in sql:
+            return 0, "0001"
+        if "pg_tables" in sql:
+            return 0, "4"
         if sql.startswith("CREATE TABLE"):
             return 1, "ERROR:  permission denied for schema public"
         if "read_only" in sql:
@@ -100,6 +104,10 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
             return 0, "\n".join(rows)
         if "datdba" in sql:
             return 0, "postgres"
+        if "alembic_version" in sql:
+            return 1, 'ERROR:  relation "public.alembic_version" does not exist'
+        if "pg_tables" in sql:
+            return 0, "0"
         if sql.startswith("CREATE TABLE"):
             return 0, "CREATE TABLE"
         return 0, "off"
@@ -107,6 +115,8 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
     failed = {r.name for r in vs.check_postgres(runner, env) if not r.ok}
     assert failed == {
+        "migrations applied (alembic)",
+        "app schema tables owned by migrator",
         "no superuser / BYPASSRLS roles",
         "database owned by azinco_migrator",
         "app role cannot create in public",
