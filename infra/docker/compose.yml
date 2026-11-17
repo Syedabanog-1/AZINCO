@@ -1,0 +1,147 @@
+# AZINCO — local development stack (Step 0.2).
+# Run from the repository root:
+#   docker compose --env-file .env -f infra/docker/compose.yml up -d
+#
+# All ports bind to 127.0.0.1 only (never exposed on the LAN).
+# Every credential comes from .env (git-ignored). Synthetic data only.
+# Application services (api, worker, ledger, web) are added in Steps 0.3+.
+
+name: azinco
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------- PostgreSQL 16 + pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:?set POSTGRES_SUPERUSER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-azinco}
+      POSTGRES_INITDB_ARGS: "--data-checksums --auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      # Consumed only by init scripts on first start (empty data volume):
+      AZINCO_DB_MIGRATOR_PASSWORD: ${AZINCO_DB_MIGRATOR_PASSWORD:?set in .env}
+      AZINCO_DB_APP_PASSWORD: ${AZINCO_DB_APP_PASSWORD:?set in .env}
+      AZINCO_DB_WORKER_PASSWORD: ${AZINCO_DB_WORKER_PASSWORD:?set in .env}
+      AZINCO_DB_LEDGER_PASSWORD: ${AZINCO_DB_LEDGER_PASSWORD:?set in .env}
+      AZINCO_DB_AUDIT_PASSWORD: ${AZINCO_DB_AUDIT_PASSWORD:?set in .env}
+      AZINCO_DB_READONLY_PASSWORD: ${AZINCO_DB_READONLY_PASSWORD:?set in .env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Redis 7 (queues, rate limits)
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --appendonly
+      - "yes"
+      - --protected-mode
+      - "yes"
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- S3-compatible object storage
+  # MinIO stopped publishing community images (Oct 2025). Default = Chainguard's maintained
+  # MinIO build. The app talks plain S3 API only, so the image can be swapped via S3_IMAGE
+  # (see infra/docker/README.md). [MOCK] local storage — production uses managed S3 + KMS.
+  storage:
+    image: ${S3_IMAGE:-cgr.dev/chainguard/minio:latest}
+    restart: unless-stopped
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      MINIO_BROWSER: "on"
+    volumes:
+      - s3_data:/data
+    ports:
+      - "127.0.0.1:${S3_PORT:-9000}:9000"
+      - "127.0.0.1:${S3_CONSOLE_PORT:-9001}:9001"
+    logging: *default-logging
+
+  # One-shot: waits for storage, creates buckets (archive with object lock + versioning).
+  storage-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      storage:
+        condition: service_started
+    entrypoint: ["/bin/bash", "/init/create-buckets.sh"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      S3_INTERNAL_ENDPOINT: http://storage:9000
+      S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS:-azinco-documents}
+      S3_BUCKET_ARCHIVE: ${S3_BUCKET_ARCHIVE:-azinco-archive}
+    volumes:
+      - ./storage:/init:ro
+    restart: "no"
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- ClamAV (upload virus scan)
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav_db:/var/lib/clamav
+    ports:
+      - "127.0.0.1:${CLAMAV_PORT:-3310}:3310"
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s   # first start downloads virus signatures (several minutes)
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Mailpit (dev email catcher)
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+volumes:
+  pg_data:
+  redis_data:
+  s3_data:
+  clamav_db:

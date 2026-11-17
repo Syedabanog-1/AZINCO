@@ -1,0 +1,35 @@
+# Root tooling configuration shared by all Python packages in the monorepo.
+# Each service/package gets its own pyproject.toml for dependencies (Steps 0.3+).
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["apps/web", "node_modules", ".venv"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",   # pycodestyle / pyflakes
+  "I",             # isort
+  "B",             # bugbear
+  "UP",            # pyupgrade
+  "S",             # bandit-style security checks
+  "N",             # naming
+  "SIM",           # simplify
+  "RUF",           # ruff-specific
+  "DTZ",           # timezone-aware datetimes only
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]          # allow assert in tests
+"infra/ci/**" = ["S603", "S607"]  # CI scripts may call git
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["infra/ci/tests", "infra/docker/tests"]
+addopts = "-q"

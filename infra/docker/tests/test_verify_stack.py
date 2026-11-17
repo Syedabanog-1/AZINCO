@@ -1,0 +1,114 @@
+"""Unit tests for infra/docker/verify_stack.py (no Docker required)."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from types import ModuleType
+
+MODULE_PATH = Path(__file__).resolve().parents[1] / "verify_stack.py"
+
+
+def _load() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("verify_stack", MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+vs = _load()
+
+
+def test_parse_env_file_handles_comments_quotes_and_inline_comments() -> None:
+    text = '# comment\n\nA=1\nB="quoted value"\nC=value   # inline comment\nD=\nnot a pair\n'
+    assert vs.parse_env_file(text) == {"A": "1", "B": "quoted value", "C": "value", "D": ""}
+
+
+def test_env_example_parses_and_contains_required_keys() -> None:
+    example = (MODULE_PATH.parents[2] / ".env.example").read_text(encoding="utf-8")
+    env = vs.parse_env_file(example)
+    for key in (
+        "POSTGRES_SUPERUSER",
+        "POSTGRES_SUPERUSER_PASSWORD",
+        "AZINCO_DB_APP_PASSWORD",
+        "AZINCO_DB_READONLY_PASSWORD",
+        "REDIS_PASSWORD",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY",
+    ):
+        assert env.get(key), key
+    assert env["AZINCO_BASE_CURRENCY"] == "PKR"
+    assert env["AZINCO_PAYMENTS_MODE"] == "mock"
+    assert env["AZINCO_FUNDS_HANDLING_DEFAULT"] == "ledger"
+
+
+def test_parse_compose_ps_accepts_array_and_ndjson() -> None:
+    assert vs.parse_compose_ps('[{"Service":"a"},{"Service":"b"}]') == [
+        {"Service": "a"},
+        {"Service": "b"},
+    ]
+    assert vs.parse_compose_ps('{"Service":"a"}\n{"Service":"b"}\n') == [
+        {"Service": "a"},
+        {"Service": "b"},
+    ]
+    assert vs.parse_compose_ps("") == []
+
+
+def test_non_local_bindings_flags_public_ports() -> None:
+    rows = [
+        {"Service": "postgres", "Publishers": [{"URL": "127.0.0.1", "PublishedPort": 5432}]},
+        {"Service": "redis", "Publishers": [{"URL": "0.0.0.0", "PublishedPort": 6379}]},  # noqa: S104
+        {"Service": "storage-init", "Publishers": [{"URL": "", "PublishedPort": 0}]},
+    ]
+    assert vs.non_local_bindings(rows) == ["redis:6379 on 0.0.0.0"]
+
+
+def test_eicar_is_not_stored_literally_in_source() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert vs.eicar_bytes().decode() not in source
+    assert vs.eicar_bytes().startswith(b"X5O!P%@AP")
+
+
+def test_check_postgres_with_fake_runner_all_good() -> None:
+    def runner(sql: str, user: str | None = None, password: str | None = None) -> tuple[int, str]:
+        if "pg_extension" in sql:
+            return 0, "citext\npgcrypto\nplpgsql\nvector"
+        if "pg_roles" in sql:
+            return 0, "\n".join(f"{r}|f|f" for r in vs.EXPECTED_ROLES)
+        if "datdba" in sql:
+            return 0, "azinco_migrator"
+        if sql.startswith("CREATE TABLE"):
+            return 1, "ERROR:  permission denied for schema public"
+        if "read_only" in sql:
+            return 0, "on"
+        raise AssertionError(sql)
+
+    env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
+    results = vs.check_postgres(runner, env)
+    assert all(r.ok for r in results), [(r.name, r.detail) for r in results]
+
+
+def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
+    def runner(sql: str, user: str | None = None, password: str | None = None) -> tuple[int, str]:
+        if "pg_extension" in sql:
+            return 0, "citext\npgcrypto\nvector"
+        if "pg_roles" in sql:
+            rows = [f"{r}|f|{'t' if r == 'azinco_app' else 'f'}" for r in vs.EXPECTED_ROLES]
+            return 0, "\n".join(rows)
+        if "datdba" in sql:
+            return 0, "postgres"
+        if sql.startswith("CREATE TABLE"):
+            return 0, "CREATE TABLE"
+        return 0, "off"
+
+    env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
+    failed = {r.name for r in vs.check_postgres(runner, env) if not r.ok}
+    assert failed == {
+        "no superuser / BYPASSRLS roles",
+        "database owned by azinco_migrator",
+        "app role cannot create in public",
+        "readonly role is read-only",
+    }
