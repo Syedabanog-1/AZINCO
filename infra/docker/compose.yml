@@ -184,6 +184,28 @@ services:
       - no-new-privileges:true
     logging: *default-logging
 
+  # ---------------------------------------------------------------- AZINCO web (Step 0.4)
+  web:
+    build:
+      context: ../../apps/web
+    image: azinco-web:dev
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      AZINCO_API_INTERNAL_URL: http://api:8000
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
   # Test runner (not started by `up`): docker compose ... --profile test run --rm api-test
   api-test:
     profiles: ["test"]
@@ -199,7 +221,7 @@ services:
       # Used only by the negative test proving a privileged role is refused.
       POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
       POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
-    command: ["sh", "-c", "pytest -p no:cacheprovider && mypy && ruff check azinco_api tests && echo API-TESTS-OK"]
+    command: ["sh", "-c", "pytest -p no:cacheprovider && mypy && ruff check --no-cache azinco_api tests && echo API-TESTS-OK"]
     read_only: true
     tmpfs:
       - /tmp

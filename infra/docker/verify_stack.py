@@ -41,7 +41,7 @@ EXPECTED_ROLES = (
     "azinco_worker",
 )
 REQUIRED_EXTENSIONS = ("citext", "pgcrypto", "vector")
-HEALTHY_SERVICES = ("postgres", "redis", "mailpit", "api")
+HEALTHY_SERVICES = ("postgres", "redis", "mailpit", "api", "web")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -333,6 +333,22 @@ def check_api(env: dict[str, str]) -> list[Result]:
     return results
 
 
+def check_web(env: dict[str, str]) -> list[Result]:
+    port = int(env.get("WEB_PORT", "3000"))
+    results: list[Result] = []
+    for path, name, needle in (
+        ("/", "web home page renders", "Experts approve."),
+        ("/status", "web status page: all systems operational", "All systems operational"),
+    ):
+        try:
+            status, body = _http_get(port, path)
+        except OSError as exc:
+            results.append(Result(name, False, str(exc)))
+            continue
+        results.append(Result(name, status == 200 and needle in body, str(status)))
+    return results
+
+
 def main() -> int:
     if not ENV_FILE.exists():
         print(
@@ -355,6 +371,7 @@ def main() -> int:
         )
     results += check_mailpit(env)
     results += check_api(env)
+    results += check_web(env)
 
     width = max(len(r.name) for r in results)
     for r in results:

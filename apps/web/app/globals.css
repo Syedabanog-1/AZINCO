@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* AZINCO design tokens — calm, trustworthy, finance-grade. */
+@theme {
+  --color-ink: #0f1b2d;
+  --color-ink-soft: #3b4a60;
+  --color-paper: #f7f8fa;
+  --color-line: #e3e7ee;
+  --color-brand: #0e5a4f;
+  --color-brand-strong: #0a453c;
+  --color-brand-tint: #e6f2ef;
+  --color-ok: #15803d;
+  --color-ok-tint: #e8f6ec;
+  --color-fail: #b42318;
+  --color-fail-tint: #fdecea;
+  --color-warn: #a15c07;
+  --color-warn-tint: #fdf3e2;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}

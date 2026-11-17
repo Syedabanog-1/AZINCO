@@ -69,8 +69,8 @@ python infra/docker/verify_stack.py
 |---|---|---|
 | 0.1 | Repo structure & conventions | Done |
 | 0.2 | Docker Compose stack | Done — verified 18/18 |
-| 0.3 | FastAPI skeleton (`/health`, `/ready`) | Done (verify on your machine) |
-| 0.4 | Next.js skeleton | Pending |
+| 0.3 | FastAPI skeleton (`/health`, `/ready`) | Done — verified |
+| 0.4 | Next.js web UI skeleton (home, live status) | Done (verify on your machine) |
 | 0.5 | PostgreSQL + Alembic + Money | Pending |
 | 0.6 | Tenant isolation (RLS) | Pending |
 | 0.7 | Auth & RBAC | Pending |

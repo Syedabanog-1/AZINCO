@@ -57,6 +57,14 @@ def test_unhandled_exception_hides_details(app_with_test_routes: TestClient) -> 
     assert resp.headers["X-Content-Type-Options"] == "nosniff"
 
 
+def test_status_titles_are_stable_across_python_versions() -> None:
+    from azinco_api.core.errors import status_title
+
+    assert status_title(422) == "Unprocessable Content"
+    assert status_title(413) == "Content Too Large"
+    assert status_title(404) == "Not Found"
+
+
 def test_method_not_allowed_is_problem_json(client: TestClient) -> None:
     resp = client.post("/health")
     assert resp.status_code == 405

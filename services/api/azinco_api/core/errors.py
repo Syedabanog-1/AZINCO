@@ -14,6 +14,15 @@ from azinco_api.core.logging import get_logger
 from azinco_api.core.middleware import REQUEST_ID_HEADER, SECURITY_HEADERS
 
 PROBLEM_JSON = "application/problem+json"
+# Stable titles (RFC 9110 names). Python's HTTPStatus phrases differ between versions
+# (e.g. 422 is "Unprocessable Entity" in 3.12 and "Unprocessable Content" in 3.13).
+_TITLE_OVERRIDES: dict[int, str] = {413: "Content Too Large", 422: "Unprocessable Content"}
+
+
+def status_title(status: int) -> str:
+    return _TITLE_OVERRIDES.get(status, HTTPStatus(status).phrase)
+
+
 log = get_logger("azinco.errors")
 
 
@@ -31,7 +40,7 @@ def problem_response(
 ) -> JSONResponse:
     body: dict[str, Any] = {
         "type": "about:blank",
-        "title": HTTPStatus(status).phrase,
+        "title": status_title(status),
         "status": status,
         "instance": request.url.path,
     }
@@ -49,7 +58,7 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
     if not isinstance(exc, StarletteHTTPException):  # registered for this type only
         raise TypeError(type(exc).__name__)
     detail: str | None = exc.detail if isinstance(exc.detail, str) else None
-    if detail == HTTPStatus(exc.status_code).phrase:
+    if detail in (HTTPStatus(exc.status_code).phrase, status_title(exc.status_code)):
         detail = None
     headers = dict(exc.headers) if exc.headers else None
     return problem_response(request, exc.status_code, detail, headers=headers)
