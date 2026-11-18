@@ -1,0 +1,148 @@
+# AZINCO CI (Step 0.11). Runs on every pull request and on pushes to main.
+# Jobs: python (lint/type/unit/property + rule-packs gate), web (types/tests/build),
+#       security (secrets + dependency audit), stack (real Docker images, migrations,
+#       integration + tenant-isolation + ledger suites, verify_stack).
+# Synthetic data only: every secret below is generated per run by generate_env.py.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  python:
+    name: python (lint, types, unit, property, rule-packs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: "**/pyproject.toml"
+      - name: Install packages (editable, with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "packages/py-common[dev]" -e "packages/rule-engine[dev]" \
+                      -e "services/api[dev]" -e "services/ledger[dev]"
+      - name: Ruff (lint + format)
+        run: |
+          ruff check --no-cache .
+          ruff format --check --no-cache .
+      - name: mypy --strict (each package)
+        run: |
+          for pkg in packages/py-common packages/rule-engine services/api services/ledger; do
+            echo "::group::mypy $pkg"; (cd "$pkg" && mypy) ; echo "::endgroup::"
+          done
+      - name: Rule-pack activation gate
+        run: python -m azinco_rules check rule-packs
+      - name: Unit + property tests (no services; integration tests run in `stack`)
+        env:
+          AZINCO_ENV: ci
+        run: |
+          pytest -p no:cacheprovider packages/py-common/tests
+          pytest -p no:cacheprovider packages/rule-engine/tests
+          (cd services/api && pytest -p no:cacheprovider)
+          (cd services/ledger && pytest -p no:cacheprovider)
+          pytest -p no:cacheprovider infra/docker/tests
+
+  web:
+    name: web (typecheck, unit tests, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  security:
+    name: security (secrets, dependency audit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # whole history: a secret removed later is still a leak
+      - name: gitleaks (secrets in the full git history)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2 \
+            git --redact --verbose /repo
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: pip-audit (known vulnerabilities in Python dependencies)
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip install "packages/py-common" "packages/rule-engine" "services/api" "services/ledger"
+          pip-audit --skip-editable --progress-spinner off
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: npm audit (production dependencies, high and critical)
+        working-directory: apps/web
+        run: npm audit --omit=dev --audit-level=high
+
+  stack:
+    name: stack (images, migrations, integration, isolation, ledger, verify)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Generate a throw-away .env (random secrets, synthetic data only)
+        run: python infra/docker/generate_env.py
+      - name: Build all images (runtime + test targets)
+        run: docker compose --env-file .env -f infra/docker/compose.yml --profile test build
+      - name: Start the stack
+        run: docker compose --env-file .env -f infra/docker/compose.yml up -d
+      - name: Wait until every service is healthy (ClamAV downloads signatures first)
+        run: |
+          for i in $(seq 1 90); do
+            states=$(docker compose --env-file .env -f infra/docker/compose.yml ps \
+                       --format '{{.Service}}={{.Health}}' | grep -v '=$' || true)
+            echo "$(date +%T) $(echo $states | tr '\n' ' ')"
+            if ! echo "$states" | grep -qv '=healthy'; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::services did not become healthy in 15 minutes"; exit 1
+      - name: API tests (alembic check, RLS isolation, auth, audit, ledger DB, Money, rule engine)
+        run: docker compose --env-file .env -f infra/docker/compose.yml --profile test run --rm api-test
+      - name: Ledger Service tests (domain, Hypothesis, end-to-end)
+        run: docker compose --env-file .env -f infra/docker/compose.yml --profile test run --rm ledger-test
+      - name: verify_stack.py (roles, RLS, ports, chains, scanners, probes)
+        run: python infra/docker/verify_stack.py
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file .env -f infra/docker/compose.yml logs --no-color --tail 200
+      - name: Tear down
+        if: always()
+        run: docker compose --env-file .env -f infra/docker/compose.yml down -v
