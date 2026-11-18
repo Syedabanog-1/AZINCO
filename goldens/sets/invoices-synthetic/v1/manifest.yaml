@@ -1,0 +1,18 @@
+set_id: invoices-synthetic
+version: v1
+status: draft
+data_policy: synthetic
+description: '[MOCK] Synthetic invoices, bills and receipts for invented PK and GB
+  businesses; labels proposed by the generator.'
+generator: azinco_worker.goldens.synth seed=20261118 count=100
+created: '2026-11-18'
+labelled_by: generator ([MOCK]) - awaiting Reviewer of Record confirmation
+reviewed_by: null
+reviewed_on: null
+chart_of_accounts:
+  '5000': Purchases (cost of sales)
+  '6000': Rent
+  '6100': Utilities
+  '6200': Office supplies
+  '6300': Travel
+items_sha256: e1b1c9d04b57e509c94fc89d29c4c9e8869dac870984f99aea3bbea732a7d5ef

@@ -29,6 +29,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from azinco_worker.gateway import ModelGateway, ModelRequest
 
 CATEGORIZE_TASK = "categorize.document"
+# Bump CATEGORIZE_PROMPT_VERSION whenever the instructions change: golden-set reports record it.
+CATEGORIZE_PROMPT_VERSION = "categorize-v1"
+CATEGORIZE_INSTRUCTIONS = (
+    "Propose the expense account for this document. "
+    "Return only a label, an account code from the client's chart and a confidence."
+)
 
 
 class CategoryProposal(BaseModel):
@@ -59,6 +65,16 @@ class ReviewState(TypedDict, total=False):
     status: Literal["awaiting_review", "approved", "rejected", "rework"]
 
 
+def categorize_request(document_text: str) -> ModelRequest:
+    """The categorisation request used by the graph AND by golden-set runs (same path measured)."""
+    return ModelRequest(
+        agent="categorization",
+        task=CATEGORIZE_TASK,
+        instructions=CATEGORIZE_INSTRUCTIONS,
+        untrusted_document=document_text,
+    )
+
+
 def thread_id(tenant_id: uuid.UUID, task_id: uuid.UUID) -> str:
     """Checkpoint thread ids are tenant-prefixed so state can never be mixed across tenants."""
     return f"{tenant_id}:{task_id}"
@@ -68,16 +84,7 @@ def build_review_graph(
     gateway: ModelGateway, checkpointer: BaseCheckpointSaver[Any] | None = None
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
     def prepare(state: ReviewState) -> ReviewState:
-        result = gateway.complete(
-            ModelRequest(
-                agent="categorization",
-                task=CATEGORIZE_TASK,
-                instructions="Propose the expense account for this document. "
-                "Return only a label, an account code from the client's chart and a confidence.",
-                untrusted_document=state["document_text"],
-            ),
-            CategoryProposal,
-        )
+        result = gateway.complete(categorize_request(state["document_text"]), CategoryProposal)
         return {
             "proposal": result.output.model_dump(),
             "model_call_ids": [result.record.call_id],
