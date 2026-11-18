@@ -1,0 +1,18 @@
+# gitleaks configuration (Step 0.11). Default rules stay on; only the exact [MOCK] test values
+# below are allowed. Never add a real secret here - rotate it instead.
+title = "AZINCO gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "[MOCK] test-only values that are not secrets"
+regexes = [
+  # services/api/tests/conftest.py TEST_FERNET_KEY: fixed Fernet key used only by unit tests.
+  '''Y2VJd3l6cHJ0b3lJdlE5bmlHdmJ4S2hQUTN0d3VmM0E=''',
+]
+paths = [
+  # Build output (never committed, but present in local working trees).
+  '''(^|/)apps/web/\.next/''',
+  '''(^|/)node_modules/''',
+]

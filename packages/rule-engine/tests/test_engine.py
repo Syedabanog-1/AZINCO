@@ -33,9 +33,18 @@ from azinco_rules.__main__ import main
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PACK_FILE = FIXTURES / "zz" / "tax" / "2026.1.yaml"
-REPO_PACKS = Path(
-    os.environ.get("AZINCO_RULE_PACKS_DIR", Path(__file__).resolve().parents[3] / "rule-packs")
-)
+
+
+def _repo_packs() -> Path:
+    """rule-packs/ next to the repo, or AZINCO_RULE_PACKS_DIR (set in the api-test image, where this
+    file lives at /app/rules_tests and has no repo root above it)."""
+    if env := os.environ.get("AZINCO_RULE_PACKS_DIR"):
+        return Path(env)
+    parents = Path(__file__).resolve().parents
+    return parents[3] / "rule-packs" if len(parents) > 3 else Path("/nonexistent")
+
+
+REPO_PACKS = _repo_packs()
 
 
 def raw() -> dict[str, Any]:
