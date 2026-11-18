@@ -113,7 +113,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   stack:
-    name: stack (images, migrations, integration, isolation, ledger, verify)
+    name: stack (images, scan, migrations, integration, isolation, ledger, verify)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -125,6 +125,17 @@ jobs:
         run: python infra/docker/generate_env.py
       - name: Build all images (runtime + test targets)
         run: docker compose --env-file .env -f infra/docker/compose.yml --profile test build
+      - name: Container scan (trivy, CRITICAL with a fix available)
+        # Pinned to a release published after the March 2026 trivy supply-chain incident; the
+        # trivy GitHub Actions are deliberately not used. [Recommended] pin by digest.
+        run: |
+          for image in azinco-api:dev azinco-ledger:dev azinco-web:dev; do
+            echo "::group::trivy $image"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:0.76.2 image --scanners vuln --severity CRITICAL \
+              --ignore-unfixed --exit-code 1 --no-progress "$image"
+            echo "::endgroup::"
+          done
       - name: Start the stack
         run: docker compose --env-file .env -f infra/docker/compose.yml up -d
       - name: Wait until every service is healthy (ClamAV downloads signatures first)

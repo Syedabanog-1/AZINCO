@@ -8,7 +8,7 @@ on pushes to `main` and manually (`workflow_dispatch`). Read-only token (`conten
 | `python` | ruff lint + format; `mypy --strict` for py-common, rule-engine, api, ledger; rule-pack activation gate; unit + Hypothesis property tests | any lint/type error, failing test, invalid or untested gated rule pack |
 | `web` | `tsc --noEmit`, vitest, `next build` | type error, failing test, build error |
 | `security` | gitleaks over the **whole git history**; `pip-audit`; `npm audit --omit=dev --audit-level=high` | a secret is found; a dependency has a known vulnerability |
-| `stack` | builds every Docker image, starts the full stack, runs `api-test` (alembic check, RLS tenant-isolation suite, auth, audit, ledger DB invariants, Money, rule engine) and `ledger-test`, then `verify_stack.py` | anything a developer would hit with the run-step scripts |
+| `stack` | builds every Docker image, scans the runtime images with trivy (CRITICAL, fix available), starts the full stack, runs `api-test` (alembic check, RLS tenant-isolation suite, auth, audit, ledger DB invariants, Money, rule engine) and `ledger-test`, then `verify_stack.py` | anything a developer would hit with the run-step scripts |
 
 Each run generates a fresh `.env` with random secrets (`generate_env.py`); no real data is used.
 Only the exact `[MOCK]` values in `.gitleaks.toml` are exempt from secret scanning.
@@ -23,7 +23,7 @@ GitHub → repository → **Settings → Branches → Add branch ruleset** (or *
    - `python (lint, types, unit, property, rule-packs)`
    - `web (typecheck, unit tests, build)`
    - `security (secrets, dependency audit)`
-   - `stack (images, migrations, integration, isolation, ledger, verify)`
+   - `stack (images, scan, migrations, integration, isolation, ledger, verify)`
 3. **Block force pushes** and **restrict deletions**.
 4. **Require conversation resolution before merging**.
 5. Do not allow bypassing the above settings (include administrators).
