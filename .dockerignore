@@ -18,4 +18,4 @@ tools
 setup
 infra
 tests
-rule-packs
+# rule-packs/ is NOT ignored: the api-test image validates it (Step 0.10a).

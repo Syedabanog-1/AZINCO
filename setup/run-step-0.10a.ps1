@@ -40,7 +40,7 @@ try {
         Write-Host "Build attempt $attempt failed (exit $LASTEXITCODE). Retrying in 20 s..."
         Start-Sleep -Seconds 20
     }
-    if (-not $built) { throw "Docker build failed twice - check your internet connection and run this script again." }
+    if (-not $built) { throw "Docker build failed twice - read the first error above (network timeout = check internet; 'not found' = a file missing from the build context)." }
 
     Section "Start everything"
     & docker @compose up -d 2>&1
