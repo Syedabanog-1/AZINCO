@@ -182,3 +182,18 @@ def test_describe_readiness_names_failing_dependency() -> None:
     )
     assert vs.describe_readiness(body) == ("postgres=ok 3ms, storage=fail 5001ms (TimeoutError)")
     assert vs.describe_readiness("not json") == "not json"
+
+
+def test_published_ports_finds_only_the_named_service() -> None:
+    rows: list[dict[str, object]] = [
+        {"Service": "api", "Publishers": [{"URL": "127.0.0.1", "PublishedPort": 8000}]},
+        {"Service": "ledger", "Publishers": [{"URL": "", "PublishedPort": 0, "TargetPort": 8100}]},
+    ]
+    assert vs.published_ports(rows, "ledger") == []
+    assert vs.published_ports(rows, "api") == ["127.0.0.1:8000"]
+    rows[1]["Publishers"] = [{"URL": "0.0.0.0", "PublishedPort": 8100}]  # noqa: S104
+    assert vs.published_ports(rows, "ledger") == ["0.0.0.0:8100"]
+
+
+def test_ledger_probe_is_valid_python() -> None:
+    compile(vs._LEDGER_PROBE, "<probe>", "exec")

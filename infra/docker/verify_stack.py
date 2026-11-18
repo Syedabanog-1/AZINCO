@@ -41,7 +41,7 @@ EXPECTED_ROLES = (
     "azinco_worker",
 )
 REQUIRED_EXTENSIONS = ("citext", "pgcrypto", "vector")
-HEALTHY_SERVICES = ("postgres", "redis", "mailpit", "api", "web")
+HEALTHY_SERVICES = ("postgres", "redis", "mailpit", "api", "web", "ledger")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -77,6 +77,20 @@ def non_local_bindings(ps_rows: Sequence[dict[str, object]]) -> list[str]:
             if published and url not in ("127.0.0.1", "localhost"):
                 bad.append(f"{row.get('Service')}:{published} on {url or 'all interfaces'}")
     return bad
+
+
+def published_ports(ps_rows: Sequence[dict[str, object]], service: str) -> list[str]:
+    """Host ports a service publishes (the Ledger Service must publish none)."""
+    found: list[str] = []
+    for row in ps_rows:
+        if row.get("Service") != service:
+            continue
+        publishers = row.get("Publishers") or []
+        if isinstance(publishers, list):
+            for pub in publishers:
+                if isinstance(pub, dict) and pub.get("PublishedPort"):
+                    found.append(f"{pub.get('URL', '')}:{pub.get('PublishedPort')}")
+    return found
 
 
 def parse_compose_ps(output: str) -> list[dict[str, object]]:
@@ -194,7 +208,38 @@ def check_containers(stack: Stack) -> list[Result]:
     )
     bad = non_local_bindings(rows)
     results.append(Result("ports bound to 127.0.0.1 only", not bad, ", ".join(bad) or "ok"))
+    exposed = published_ports(rows, "ledger")
+    results.append(
+        Result(
+            "ledger not reachable from host",
+            "ledger" in by_service and not exposed,
+            ", ".join(exposed) or ("internal only" if "ledger" in by_service else "missing"),
+        )
+    )
     return results
+
+
+# Runs inside the ledger container: status of an unauthenticated call and of /ready.
+_LEDGER_PROBE = (
+    "import urllib.request as u, urllib.error as e\n"
+    "def st(path):\n"
+    "    try:\n"
+    "        return u.urlopen('http://127.0.0.1:8100' + path, timeout=10).status\n"
+    "    except e.HTTPError as x:\n"
+    "        return x.code\n"
+    "print(st('/internal/ledger/verify'), st('/ready'))\n"
+)
+
+
+def check_ledger(stack: Stack) -> list[Result]:
+    proc = stack.compose("exec", "-T", "ledger", "python", "-c", _LEDGER_PROBE)
+    out = (proc.stdout + proc.stderr).decode(errors="replace").strip()
+    parts = out.split()
+    unauth, ready = (parts[0], parts[1]) if proc.returncode == 0 and len(parts) == 2 else ("", "")
+    return [
+        Result("ledger refuses calls without service token", unauth == "401", unauth or out[:80]),
+        Result("ledger /ready (role not privileged)", ready == "200", ready or out[:80]),
+    ]
 
 
 APP_TABLES = 8  # tenants, users, memberships, platform_roles, sessions, tokens, entities, approvals
@@ -511,6 +556,7 @@ def main() -> int:
     results: list[Result] = []
     results += check_containers(stack)
     results += check_postgres(stack.psql, env)
+    results += check_ledger(stack)
     results += check_redis(stack)
     results += check_storage(stack)
     if any(r.name == "clamav healthy" and r.ok for r in results):
