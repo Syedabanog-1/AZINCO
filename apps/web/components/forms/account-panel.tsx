@@ -80,13 +80,13 @@ export function AccountPanel() {
         </Alert>
       ) : null}
 
-      <div className="rounded-lg border border-line bg-white p-5">
+      <div className="rounded-lg border border-line bg-surface p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-lg font-semibold">{me.display_name}</p>
+            <p className="font-display text-2xl">{me.display_name}</p>
             <p className="text-sm text-ink-soft">{me.email}</p>
           </div>
-          <button onClick={logout} className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-paper">
+          <button onClick={logout} className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-ink-faint">
             Sign out
           </button>
         </div>
@@ -104,8 +104,8 @@ export function AccountPanel() {
         </dl>
       </div>
 
-      <div className="rounded-lg border border-line bg-white p-5">
-        <h2 className="font-semibold">Workspaces</h2>
+      <div className="rounded-lg border border-line bg-surface p-5">
+        <h2 className="font-sans text-base font-semibold tracking-normal">Workspaces</h2>
         {me.memberships.length === 0 ? (
           <p className="mt-2 text-sm text-ink-soft">
             You are not part of a client workspace yet. Business onboarding opens in Phase 1.
@@ -125,8 +125,8 @@ export function AccountPanel() {
       </div>
 
       {!me.mfa_enabled ? (
-        <div className="rounded-lg border border-line bg-white p-5">
-          <h2 className="font-semibold">Set up multi-factor authentication</h2>
+        <div className="rounded-lg border border-line bg-surface p-5">
+          <h2 className="font-sans text-base font-semibold tracking-normal">Set up multi-factor authentication</h2>
           {!setup ? (
             <>
               <p className="mt-2 text-sm text-ink-soft">
@@ -149,7 +149,7 @@ export function AccountPanel() {
                 alt="QR code for your authenticator app"
                 width={200}
                 height={200}
-                className="rounded-md border border-line bg-white"
+                className="rounded-md border border-line bg-surface"
               />
               <p className="text-xs text-ink-soft">
                 Can&rsquo;t scan? Choose &ldquo;Enter a setup key&rdquo; in the app and type this key (keep it

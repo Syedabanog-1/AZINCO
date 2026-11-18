@@ -1,28 +1,31 @@
 import Link from "next/link";
+import { Badge, PageHeader } from "@/components/ui";
 import type { PlannedInterface } from "@/lib/content";
 
-/** Placeholder for interfaces delivered in later steps. Clearly labelled — not a fake feature. */
+/** Placeholder for interfaces delivered in later phases. Clearly labelled; not a fake feature. */
 export function PlannedInterfacePage({ plan }: { plan: PlannedInterface }) {
   return (
-    <section className="mx-auto max-w-3xl px-6 py-16">
-      <p className="inline-flex rounded-full bg-warn-tint px-3 py-1 text-xs font-semibold text-warn">
-        Not available yet · {plan.phase}
-      </p>
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight">{plan.title}</h1>
-      <p className="mt-3 text-ink-soft">
-        This interface is part of the AZINCO roadmap and is not built yet. Planned capabilities:
-      </p>
-      <ul className="mt-6 space-y-2">
+    <>
+      <PageHeader
+        title={plan.title}
+        status={<Badge tone="warn" dot>Not available yet: {plan.phase}</Badge>}
+        description="This part of AZINCO is on the roadmap and not built yet. Here is what it will do."
+      />
+      <ul className="mt-8 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
         {plan.items.map((item) => (
-          <li key={item} className="flex gap-3 rounded-md border border-line bg-white px-4 py-3 text-sm">
-            <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand" />
-            {item}
+          <li key={item} className="flex gap-3 bg-surface px-5 py-5">
+            <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" />
+            <span>{item}</span>
           </li>
         ))}
       </ul>
-      <Link href="/" className="mt-8 inline-block text-sm font-medium text-brand hover:underline">
-        ← Back to home
-      </Link>
-    </section>
+      <p className="mt-8 text-sm text-ink-soft">
+        Meanwhile you can{" "}
+        <Link href="/account" className="font-medium text-brand hover:underline">
+          secure your account with multi-factor authentication
+        </Link>
+        .
+      </p>
+    </>
   );
 }
