@@ -1,11 +1,14 @@
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
+import { useId } from "react";
+import { buttonClass } from "@/components/ui";
 
+/** Heading block for the auth pages. The (auth) layout supplies the surrounding frame. */
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mx-auto max-w-md px-6 py-14">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {subtitle ? <p className="mt-2 text-sm text-ink-soft">{subtitle}</p> : null}
-      <div className="mt-6 rounded-lg border border-line bg-white p-6">{children}</div>
+    <section>
+      <h1 className="text-4xl">{title}</h1>
+      {subtitle ? <p className="mt-2 text-ink-soft">{subtitle}</p> : null}
+      <div className="mt-8">{children}</div>
     </section>
   );
 }
@@ -14,39 +17,48 @@ export function Field({
   label,
   hint,
   ...input
-}: { label: string; hint?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
+  const hintId = useId();
   return (
     <label className="block">
       <span className="text-sm font-medium">{label}</span>
       <input
         {...input}
-        className="mt-1 block w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+        aria-describedby={hint ? hintId : undefined}
+        className="mt-1.5 block w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[15px] shadow-[inset_0_1px_0_rgba(21,32,30,0.03)] transition-colors outline-none placeholder:text-ink-faint hover:border-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
       />
-      {hint ? <span className="mt-1 block text-xs text-ink-soft">{hint}</span> : null}
+      {hint ? (
+        <span id={hintId} className="mt-1.5 block text-xs text-ink-soft">
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }
 
 export function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }) {
   return (
-    <button
-      type="submit"
-      disabled={busy}
-      className="w-full rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-strong disabled:opacity-60"
-    >
-      {busy ? "Please wait…" : children}
+    <button type="submit" disabled={busy} aria-busy={busy} className={buttonClass("primary", "lg", "w-full")}>
+      {busy ? (
+        <>
+          <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          Please wait
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }
 
 export function Alert({ kind, children }: { kind: "error" | "success" | "info"; children: ReactNode }) {
   const styles = {
-    error: "border-fail/30 bg-fail-tint text-fail",
-    success: "border-ok/30 bg-ok-tint text-ok",
+    error: "border-fail bg-fail-tint text-fail",
+    success: "border-ok bg-ok-tint text-ok",
     info: "border-line bg-paper text-ink-soft",
   }[kind];
   return (
-    <div role={kind === "error" ? "alert" : "status"} className={`rounded-md border px-3 py-2 text-sm ${styles}`}>
+    <div role={kind === "error" ? "alert" : "status"} className={`rounded-md border-l-4 px-4 py-3 text-sm ${styles}`}>
       {children}
     </div>
   );

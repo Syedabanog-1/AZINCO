@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: "System status" };
 export default function StatusPage() {
   return (
     <section className="mx-auto max-w-4xl px-6 py-14">
-      <h1 className="text-3xl font-semibold tracking-tight">System status</h1>
-      <p className="mt-2 text-sm text-ink-soft">
+      <h1 className="text-4xl">System status</h1>
+      <p className="mt-3 max-w-2xl text-ink-soft">
         Live readiness of the AZINCO API and the services it depends on. Checked on every page
         load from the server; the browser never talks to internal services directly.
       </p>
@@ -56,8 +56,9 @@ async function LiveStatus() {
         <StatusPill ok={ready} label={ready ? "Ready" : "Not ready"} />
       </div>
 
-      <table className="w-full overflow-hidden rounded-lg border border-line bg-white text-sm">
-        <thead className="bg-paper text-left text-xs uppercase tracking-wide text-ink-soft">
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <table className="figures w-full text-sm">
+        <thead className="bg-paper text-left text-xs text-ink-soft">
           <tr>
             <th className="px-4 py-3 font-medium">Component</th>
             <th className="px-4 py-3 font-medium">Status</th>
@@ -71,7 +72,7 @@ async function LiveStatus() {
             <td className="px-4 py-3">
               <StatusPill ok label="Up" />
             </td>
-            <td className="px-4 py-3 text-right font-mono text-ink-soft">—</td>
+            <td className="px-4 py-3 text-right text-ink-soft">—</td>
             <td className="px-4 py-3 text-ink-soft">/health</td>
           </tr>
           {status.readiness.components.map((c) => (
@@ -80,7 +81,7 @@ async function LiveStatus() {
               <td className="px-4 py-3">
                 <StatusPill ok={c.status === "ok"} label={c.status === "ok" ? "OK" : "Fail"} />
               </td>
-              <td className="px-4 py-3 text-right font-mono text-ink-soft">
+              <td className="px-4 py-3 text-right text-ink-soft">
                 {c.latency_ms.toFixed(1)} ms
               </td>
               <td className="px-4 py-3 font-mono text-xs text-ink-soft">{c.detail ?? "—"}</td>
@@ -88,6 +89,7 @@ async function LiveStatus() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -14,9 +14,16 @@ test("status page reports all systems operational", async ({ page }) => {
   await expect(page.getByText("Database (PostgreSQL)")).toBeVisible();
 });
 
-test("planned interfaces are clearly labelled", async ({ page }) => {
+test("signed-in areas send visitors to sign in", async ({ page }) => {
   await page.goto("/review");
-  await expect(page.getByText(/Not available yet/)).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+});
+
+test("home page shows a balanced sample entry with reviewer approval", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Sample, synthetic data")).toBeVisible();
+  await expect(page.getByText("Balanced")).toBeVisible();
 });
 
 test("sign-in page has the login form", async ({ page }) => {
