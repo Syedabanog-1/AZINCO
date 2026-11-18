@@ -13,10 +13,10 @@
 | Check | Status | Evidence / note |
 |---|---|---|
 | Secrets scan (gitleaks, full history) | ✅ | CI `security`; history scan 2026-11-18: no leaks; `.gitleaks.toml` allows only [MOCK] values |
-| Dependency audit (pip-audit, npm audit) | ✅ | CI `security` green on run #1 |
+| Dependency audit (pip-audit, npm audit) | ✅ | CI `security` green on runs #1 and #14 |
 | SAST — Python | ✅ | ruff `S` rules (flake8-bandit equivalent) on all Python packages, CI `python` |
 | SAST — web (eslint security rules) | ⏳ | ESLint not configured in `apps/web` yet — first web task of Phase 1 |
-| Container scan (trivy) | 🟡 | Added to CI `stack` (CRITICAL with fix, pinned 0.76.2); first run pending |
+| Container scan (trivy) | ✅ | CI `stack` run #14: no CRITICAL vulnerability with an available fix (trivy 0.76.2) |
 | Threat model (STRIDE) reviewed | 🟡 | `threat-model.md` drafted; review signature pending |
 | MFA enforced for staff, reviewer, platform roles | ✅ | `test_auth_flow.py`, RBAC `MFA_REQUIRED_TENANT_ROLES` |
 | DB roles: no superuser / BYPASSRLS; no DELETE for runtime roles | ✅ | `verify_stack` (39/39 on 2026-11-18) |
@@ -29,7 +29,7 @@
 | # | Criterion | Status | Evidence / owner |
 |---|---|---|---|
 | 1 | `docker compose up` brings all services healthy | ✅ | run-step-0.10b log: 39/39 |
-| 2 | CI green on all gates | ⏳ | Run #1: `stack`, `web`, `security` green; `python` fixed in PR `feat/step-0.10b` — needs a green PR run |
+| 2 | CI green on all gates | ✅ | CI run #14 on `main` (f6111da), 2026-11-18: python, web, security, stack all green |
 | 3 | Isolation suite: tenant A cannot read/write tenant B on every tenant table | ✅ | `test_tenant_isolation.py`, ledger/audit RLS tests |
 | 4 | Unbalanced journal and update of a posted journal rejected **by the database** | ✅ | `test_ledger_db.py` incl. property tests |
 | 5 | Every API mutation produces an audit event and the chain verifies | ✅ | auth + ledger mutations audited in-transaction; `verify_stack` chains (new mutations must keep this) |
@@ -39,5 +39,5 @@
 | 9 | Security review signed | ⏳ | This checklist + threat model → reviewer signature |
 | G | Golden-set framework and first synthetic set exist | 🟡 | `golden-set-plan.md` ✅; first synthetic set + runner ⏳ (first Phase 1 task) |
 
-**Phase 0 is not closed** until rows 2, 6, 7, 8, 9 and G are complete and signed. Nothing here
+**Phase 0 is not closed** until rows 6, 7, 8, 9 and G are complete and signed. Nothing here
 means production readiness.
