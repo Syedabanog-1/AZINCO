@@ -17,7 +17,7 @@ from azinco_api.core.config import Environment, Settings
 from azinco_api.db.session import create_session_factory
 from azinco_api.devtools.seed_workspace import SeedError, mock_name, seed_workspace
 from azinco_api.main import create_app
-from tests.conftest import TEST_FERNET_KEY
+from tests.conftest import TEST_FERNET_KEY, make_settings
 from tests.db_helpers import DB_INTEGRATION
 
 
@@ -29,7 +29,7 @@ def test_mock_name_is_always_tagged() -> None:
 
 
 def test_refuses_outside_local_and_ci() -> None:
-    settings = Settings().model_copy(update={"env": Environment("staging")})
+    settings = make_settings().model_copy(update={"env": Environment("staging")})
     with pytest.raises(SeedError, match="local/ci only"):
         asyncio.run(seed_workspace(None, settings, email="x@example.com", name="X"))  # type: ignore[arg-type]
 
