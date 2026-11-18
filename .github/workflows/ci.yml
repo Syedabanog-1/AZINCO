@@ -52,6 +52,9 @@ jobs:
           done
       - name: Rule-pack activation gate
         run: python -m azinco_rules check rule-packs
+      - name: Golden-set integrity (hashes, labels, review status)
+        run: |
+          for set in goldens/sets/*/v*; do python -m azinco_worker.goldens check "$set"; done
       - name: Unit + property tests (no services; integration tests run in `stack`)
         env:
           AZINCO_ENV: ci

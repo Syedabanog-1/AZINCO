@@ -37,7 +37,7 @@
 | 7 | Delivery-mode matrix + legal review recorded | 🟡 | Template ✅; legal review ⏳ GAP-LEG-01 (counsel) |
 | 8 | Reviewer of Record named and licence recorded | ⏳ | DEC-13 (owner) |
 | 9 | Security review signed | ⏳ | This checklist + threat model → reviewer signature |
-| G | Golden-set framework and first synthetic set exist | 🟡 | `golden-set-plan.md` ✅; first synthetic set + runner ⏳ (first Phase 1 task) |
+| G | Golden-set framework and first synthetic set exist | ✅ | `azinco_worker.goldens` (schema, generator, scorers, runner, regression gate) + `goldens/sets/invoices-synthetic/v1` (100 items, status draft) + [MOCK] baseline; CI integrity check. Reviewer confirmation of labels ⏳ |
 
-**Phase 0 is not closed** until rows 6, 7, 8, 9 and G are complete and signed. Nothing here
+**Phase 0 is not closed** until rows 6, 7, 8 and 9 are complete and signed. Nothing here
 means production readiness.

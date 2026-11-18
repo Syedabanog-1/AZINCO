@@ -53,6 +53,9 @@ against the last accepted report and fails on regression.
 
 ## Phase 0 status
 
-Framework rules defined here; synthetic fixtures already exercise the engine (rule-engine `ZZ`
-pack, gateway [MOCK] fixtures). The first synthetic extraction set and the runner are the first
-Phase 1 tasks — recorded as an open Phase 0 acceptance item in the security checklist.
+Done: framework `services/worker/azinco_worker/goldens` (schema with document hashes, deterministic
+[MOCK] generator, scorers for categorisation / fields / injection resistance / flags, runner,
+regression gate, CLI) and the first set `goldens/sets/invoices-synthetic/v1` (100 synthetic items,
+status **draft**) with a [MOCK] baseline. CI checks set integrity and fails on any regression.
+Open: Reviewer of Record confirms the labels (→ `reviewed`); Urdu items; extraction predictor and
+real-provider runs arrive with the Phase 1 agents.

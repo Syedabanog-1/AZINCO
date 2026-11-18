@@ -23,6 +23,9 @@ CMD ["python", "-c", "import azinco_worker; print('azinco-worker', azinco_worker
 FROM base AS dev
 RUN --mount=type=cache,target=/root/.cache/pip pip install ".[dev]"
 COPY services/worker/tests ./tests
+# Golden sets + accepted baselines (synthetic only); the regression test runs against them.
+COPY goldens ./goldens
+ENV AZINCO_GOLDENS_DIR=/app/goldens
 USER azinco
 ENV MYPY_CACHE_DIR=/tmp/.mypy_cache
 CMD ["sh", "-c", "pytest -p no:cacheprovider tests && mypy && ruff check --no-cache . && echo WORKER-TESTS-OK"]
