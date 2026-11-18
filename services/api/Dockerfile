@@ -13,12 +13,13 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 azinco \
  && useradd --system --uid 10001 --gid azinco --no-create-home --shell /usr/sbin/nologin azinco
 COPY packages/py-common /src/py-common
+COPY packages/rule-engine /src/rule-engine
 COPY services/api/pyproject.toml services/api/README.md services/api/alembic.ini ./
 COPY services/api/azinco_api ./azinco_api
 
 FROM base AS runtime
 # Cache mount: downloads survive between builds (helps on slow or unstable connections).
-RUN --mount=type=cache,target=/root/.cache/pip pip install /src/py-common .
+RUN --mount=type=cache,target=/root/.cache/pip pip install /src/py-common /src/rule-engine .
 USER azinco
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
@@ -27,9 +28,13 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
 CMD ["uvicorn", "azinco_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers", "--forwarded-allow-ips", "127.0.0.1"]
 
 FROM base AS dev
-RUN --mount=type=cache,target=/root/.cache/pip pip install "/src/py-common[dev]" ".[dev]"
+RUN --mount=type=cache,target=/root/.cache/pip pip install "/src/py-common[dev]" "/src/rule-engine[dev]" ".[dev]"
 COPY services/api/tests ./tests
 COPY packages/py-common/tests ./common_tests
+# Rule engine tests (+ [MOCK] fixtures) and the governed rule-packs folder (empty until sourced).
+COPY packages/rule-engine/tests ./rules_tests
+COPY rule-packs ./rule-packs
+ENV AZINCO_RULE_PACKS_DIR=/app/rule-packs
 USER azinco
 ENV MYPY_CACHE_DIR=/tmp/.mypy_cache
 CMD ["pytest", "-p", "no:cacheprovider", "tests", "common_tests"]

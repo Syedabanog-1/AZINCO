@@ -11,7 +11,7 @@ Template: `0000-template.md`. Number ADRs sequentially; never edit an Accepted A
 | 0005 | Queue (Redis Streams) | Proposed |
 | [0006](0006-authentication.md) | Authentication — FastAPI-native sessions, Argon2id, TOTP MFA | **Accepted** (Step 0.7) |
 | 0007 | Encryption & keys | Proposed |
-| 0008 | Rule-pack format | Proposed |
+| [0008](0008-rule-pack-format.md) | Rule-pack format — YAML decision tables, pure evaluator, activation gate | **Accepted** (Step 0.10a) |
 | 0009 | Money & FX — Decimal, NUMERIC(20,4), base PKR | Proposed (DEC-12 resolved) |
 | 0010 | OCR engine | Open (spike in Phase 1) |
 | 0011 | Payment adapter & "Banking Channels" | Proposed |

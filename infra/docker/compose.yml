@@ -273,9 +273,11 @@ services:
       - -c
       - >-
         alembic check
-        && pytest -p no:cacheprovider tests common_tests
+        && pytest -p no:cacheprovider tests common_tests rules_tests
         && mypy
         && ruff check --no-cache azinco_api tests
+        && (cd /src/rule-engine && mypy && ruff check --no-cache .)
+        && python -m azinco_rules check rule-packs
         && echo API-TESTS-OK
     read_only: true
     tmpfs:

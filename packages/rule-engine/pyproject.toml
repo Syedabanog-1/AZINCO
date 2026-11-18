@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "azinco-rules"
+version = "0.1.0"
+description = "AZINCO rule engine: versioned jurisdiction rule packs and a pure decision-table evaluator"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.9,<3", "pyyaml>=6.0.2,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "hypothesis>=6.120", "mypy>=1.13", "types-PyYAML>=6.0", "ruff>=0.8"]
+
+[project.scripts]
+azinco-rules = "azinco_rules.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["azinco_rules"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "SIM", "RUF", "DTZ"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["azinco_rules", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+files = ["azinco_rules", "tests"]

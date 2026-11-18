@@ -1,0 +1,70 @@
+# [MOCK] SYNTHETIC TEST PACK - NOT A REAL TAX RULE.
+# Jurisdiction "ZZ" is an ISO user-assigned code that belongs to no country. Rates, thresholds and
+# citations here are invented only to exercise the engine; they must never be used for client work.
+schema_version: 1
+pack:
+  jurisdiction: ZZ
+  layer: tax
+  name: "[MOCK] Synthetic sales tax pack"
+  version: "2026.1"
+  status: active
+  effective_from: 2026-01-01
+  effective_to: 2027-01-01
+  owner: "[MOCK] test owner"
+  review_due: 2026-06-30
+facts:
+  supply_type: {type: enum, values: [standard, exempt, export]}
+  registered: {type: boolean}
+  amount: {type: decimal}
+  invoice_date: {type: date}
+rules:
+  - id: ZZ-ST.1
+    kind: tax_rate
+    description: "[MOCK] standard supplies by registered persons"
+    when:
+      - {fact: supply_type, op: eq, value: standard}
+      - {fact: registered, op: is_true}
+    then: {rate: "0.1234", tax_code: ZZ-STD}
+    citations:
+      - {source_title: "[MOCK] Synthetic Act for tests", reference: "MOCK-REF-1",
+         section: "s.1", retrieved_at: 2026-01-01}
+  - id: ZZ-ST.2
+    kind: tax_rate
+    description: "[MOCK] exports are zero-rated"
+    when:
+      - {fact: supply_type, op: eq, value: export}
+    then: {rate: "0", tax_code: ZZ-ZERO}
+    citations:
+      - {source_title: "[MOCK] Synthetic Act for tests", reference: "MOCK-REF-1",
+         section: "s.2", retrieved_at: 2026-01-01}
+  - id: ZZ-WH.1
+    kind: withholding
+    description: "[MOCK] withholding above a synthetic threshold"
+    when:
+      - {fact: amount, op: gt, value: "1000000.00"}
+      - {fact: invoice_date, op: between, value: [2026-01-01, 2026-12-31]}
+    then: {withhold: true, rate: "0.0100"}
+    citations:
+      - {source_title: "[MOCK] Synthetic Act for tests", reference: "MOCK-REF-2",
+         section: "s.9", retrieved_at: 2026-01-01}
+tests:
+  - name: standard registered supply
+    kind: tax_rate
+    facts: {supply_type: standard, registered: true}
+    expect: {rule_ids: [ZZ-ST.1], outputs: {rate: "0.1234"}}
+  - name: unregistered standard supply has no rate here
+    kind: tax_rate
+    facts: {supply_type: standard, registered: false}
+    expect: {no_match: true}
+  - name: export zero-rated
+    kind: tax_rate
+    facts: {supply_type: export, registered: true}
+    expect: {rule_ids: [ZZ-ST.2], outputs: {tax_code: ZZ-ZERO}}
+  - name: withholding at threshold boundary is not applied
+    kind: withholding
+    facts: {amount: "1000000.00", invoice_date: 2026-05-01}
+    expect: {no_match: true}
+  - name: withholding above threshold
+    kind: withholding
+    facts: {amount: "1000000.01", invoice_date: 2026-05-01}
+    expect: {rule_ids: [ZZ-WH.1], outputs: {withhold: true}}
