@@ -398,6 +398,22 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
             "app role blocked" if code != 0 else "UNEXPECTEDLY ALLOWED",
         )
     )
+
+    # Step 0.10b — agents' role may only write its checkpoint schema (migration 0006, ADR-0002)
+    code, out = run_sql(
+        "SELECT (has_table_privilege('azinco_worker', 'ledger.journals', 'INSERT') "
+        "OR has_table_privilege('azinco_worker', 'app.approvals', 'INSERT') "
+        "OR has_schema_privilege('azinco_worker', 'ledger', 'CREATE') "
+        "OR has_schema_privilege('azinco_worker', 'public', 'CREATE')), "
+        "has_schema_privilege('azinco_worker', 'agent_state', 'CREATE')"
+    )
+    results.append(
+        Result(
+            "worker role confined to agent_state",
+            out.strip() == "f|t",
+            "ok" if out.strip() == "f|t" else (out or "unexpected"),
+        )
+    )
     return results
 
 

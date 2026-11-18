@@ -10,10 +10,10 @@ from pathlib import Path
 from azinco_rules import Layer, Registry, evaluate
 
 registry = Registry.load_dir(Path("rule-packs"))
-pack = registry.select("PK", Layer.TAX, date(2026, 9, 30))   # NoPackError until a pack exists
+pack = registry.select("PK", Layer.TAX, date(2026, 9, 30))  # NoPackError until a pack exists
 result = evaluate(pack, "tax_rate", {"supply_type": "standard", "registered": True})
 result.outputs, result.rule_ids, result.citations, result.version, result.content_hash
-result.needs_human_review   # True unless the pack is `active` (provisional => Reviewer, §6.6)
+result.needs_human_review  # True unless the pack is `active` (provisional => Reviewer, §6.6)
 ```
 
 | Rule | How |
