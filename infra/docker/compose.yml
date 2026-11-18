@@ -263,6 +263,8 @@ services:
       AZINCO_INTEGRATION_DB: "1"
       AZINCO_DB_MIGRATOR_PASSWORD: ${AZINCO_DB_MIGRATOR_PASSWORD}
       AZINCO_DB_READONLY_PASSWORD: ${AZINCO_DB_READONLY_PASSWORD}
+      # Ledger invariant tests run as the real Ledger Service role.
+      AZINCO_DB_LEDGER_PASSWORD: ${AZINCO_DB_LEDGER_PASSWORD}
       # Used only by the negative test proving a privileged role is refused.
       POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
       POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}

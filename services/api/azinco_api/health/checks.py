@@ -7,6 +7,7 @@ exception type name, never the message (messages can contain hosts, users or DSN
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -49,24 +50,41 @@ class PostgresCheck:
         self._user = user or settings.db_app_user
         self._password = password or settings.db_app_password.get_secret_value()
 
-    async def __call__(self) -> None:
-        s = self._settings
-        conn = await asyncpg.connect(
-            host=s.postgres_host,
-            port=s.postgres_port,
-            user=self._user,
-            password=self._password,
-            database=s.postgres_db,
-            timeout=s.readiness_timeout_seconds,
-        )
-        try:
-            privileged = await conn.fetchval(
-                "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+        # One long-lived connection: opening a new one (TCP + SCRAM) on every probe is the
+        # slowest part of readiness on a busy machine. Reconnects automatically after errors.
+        self._conn: asyncpg.Connection | None = None
+        self._lock = asyncio.Lock()
+
+    async def _connection(self) -> asyncpg.Connection:
+        if self._conn is None or self._conn.is_closed():
+            s = self._settings
+            self._conn = await asyncpg.connect(
+                host=s.postgres_host,
+                port=s.postgres_port,
+                user=self._user,
+                password=self._password,
+                database=s.postgres_db,
+                timeout=s.readiness_timeout_seconds,
             )
+        return self._conn
+
+    async def __call__(self) -> None:
+        async with self._lock:
+            try:
+                conn = await self._connection()
+                privileged = await conn.fetchval(
+                    "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+                )
+            except BaseException:
+                await self.close()  # never reuse a connection in an unknown state
+                raise
             if privileged is not False:
                 raise PrivilegedRoleError
-        finally:
-            await conn.close()
+
+    async def close(self) -> None:
+        conn, self._conn = self._conn, None
+        if conn is not None and not conn.is_closed():
+            conn.terminate()
 
 
 class RedisCheck:
@@ -75,17 +93,26 @@ class RedisCheck:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
+        self._client: Redis | None = None
+
+    def _get_client(self) -> Redis:
+        # The client keeps a small connection pool, so repeated probes reuse a connection.
+        if self._client is None:
+            timeout = self._settings.readiness_timeout_seconds
+            self._client = Redis.from_url(
+                self._settings.redis_url.get_secret_value(),
+                socket_connect_timeout=timeout,
+                socket_timeout=timeout,
+            )
+        return self._client
+
     async def __call__(self) -> None:
-        timeout = self._settings.readiness_timeout_seconds
-        client = Redis.from_url(
-            self._settings.redis_url.get_secret_value(),
-            socket_connect_timeout=timeout,
-            socket_timeout=timeout,
-        )
-        try:
-            if not await client.ping():
-                raise ConnectionError
-        finally:
+        if not await self._get_client().ping():
+            raise ConnectionError
+
+    async def close(self) -> None:
+        client, self._client = self._client, None
+        if client is not None:
             await client.aclose()
 
 
@@ -138,6 +165,19 @@ async def _run_one(check: ReadinessCheck, timeout: float) -> CheckResult:
             check.name, False, round((time.perf_counter() - started) * 1000, 2), type(exc).__name__
         )
     return CheckResult(check.name, True, round((time.perf_counter() - started) * 1000, 2))
+
+
+async def warm_up(checks: Sequence[ReadinessCheck], timeout: float) -> None:
+    """Open connections and build clients once at startup so the first /ready is fast."""
+    await run_checks(checks, timeout)
+
+
+async def close_checks(checks: Sequence[ReadinessCheck]) -> None:
+    for check in checks:
+        close = getattr(check, "close", None)
+        if close is not None:
+            with contextlib.suppress(Exception):  # best effort during shutdown
+                await close()
 
 
 async def run_checks(checks: Sequence[ReadinessCheck], timeout: float) -> list[CheckResult]:

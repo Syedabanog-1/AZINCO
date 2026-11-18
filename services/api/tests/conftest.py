@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterator, Sequence
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from hypothesis import settings as hypothesis_settings
 from pydantic import SecretStr
 
 from azinco_api.core.config import Environment, Settings
 from azinco_api.health.checks import ReadinessCheck
 from azinco_api.main import create_app
+
+# Read-only CI containers: no Hypothesis example database (same profile as packages/py-common).
+hypothesis_settings.register_profile("ci", database=None, deadline=None)
+hypothesis_settings.register_profile("dev", deadline=None)
+hypothesis_settings.load_profile("ci" if os.environ.get("AZINCO_ENV") == "ci" else "dev")
 
 # Fixed [MOCK] key for tests only (generated with cryptography.fernet.Fernet.generate_key()).
 TEST_FERNET_KEY = "Y2VJd3l6cHJ0b3lJdlE5bmlHdmJ4S2hQUTN0d3VmM0E="

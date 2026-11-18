@@ -197,6 +197,10 @@ def check_containers(stack: Stack) -> list[Result]:
     return results
 
 
+APP_TABLES = 8  # tenants, users, memberships, platform_roles, sessions, tokens, entities, approvals
+LEDGER_TABLES = 5  # accounts, periods, journals, journal_lines, consumed_approvals
+
+
 def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str]) -> list[Result]:
     results: list[Result] = []
     code, out = run_sql("SELECT extname FROM pg_extension ORDER BY 1")
@@ -237,14 +241,24 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
     code, out = run_sql(
         "SELECT count(*) FROM pg_tables WHERE schemaname = 'app' AND tableowner = 'azinco_migrator'"
     )
-    results.append(Result("app schema tables owned by migrator", out.strip() == "6", out.strip()))
+    results.append(
+        Result(
+            "app schema tables owned by migrator",
+            out.strip() == str(APP_TABLES),
+            out.strip(),
+        )
+    )
     code, out = run_sql(
         "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = 'app' AND c.relkind = 'r' "
         "AND c.relrowsecurity AND c.relforcerowsecurity"
     )
     results.append(
-        Result("RLS enabled + forced on app tables", out.strip() == "6", out.strip() or out)
+        Result(
+            "RLS enabled + forced on app tables",
+            out.strip() == str(APP_TABLES),
+            out.strip() or out,
+        )
     )
     code, out = run_sql(
         "SELECT count(*) FROM app.tenants",
@@ -297,6 +311,46 @@ def check_postgres(run_sql: Callable[..., tuple[int, str]], env: dict[str, str])
             "app role cannot delete audit events",
             code != 0 and "permission denied" in out,
             "blocked" if code != 0 else "UNEXPECTEDLY ALLOWED",
+        )
+    )
+
+    # Step 0.9 — ledger invariants (migration 0005, ADR-0015)
+    code, out = run_sql(
+        "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'ledger' AND c.relkind = 'r' "
+        "AND c.relrowsecurity AND c.relforcerowsecurity"
+    )
+    results.append(
+        Result(
+            "RLS enabled + forced on ledger tables",
+            out.strip() == str(LEDGER_TABLES),
+            out.strip() or out,
+        )
+    )
+    code, out = run_sql(
+        "SELECT count(*) FILTER (WHERE NOT v.ok), count(*) FROM "
+        "(SELECT DISTINCT tenant_id FROM ledger.journals WHERE ledger_seq IS NOT NULL) s, "
+        "LATERAL ledger.verify_chain(s.tenant_id) v"
+    )
+    parts = out.strip().split("|") if code == 0 else []
+    results.append(
+        Result(
+            "ledger hash chains verify",
+            len(parts) == 2 and parts[0] == "0",
+            f"{parts[1]} ledger(s), {parts[0]} broken" if len(parts) == 2 else out,
+        )
+    )
+    code, out = run_sql(
+        "INSERT INTO ledger.journals (tenant_id, entity_id, journal_date, description, source) "
+        "VALUES (gen_random_uuid(), gen_random_uuid(), current_date, 'probe', 'manual')",
+        "azinco_app",
+        env["AZINCO_DB_APP_PASSWORD"],
+    )
+    results.append(
+        Result(
+            "only the ledger role writes journals",
+            code != 0 and "permission denied" in out,
+            "app role blocked" if code != 0 else "UNEXPECTEDLY ALLOWED",
         )
     )
     return results
@@ -353,8 +407,13 @@ def check_clamav(stack: Stack) -> list[Result]:
     return [Result("clamav detects EICAR test file", "FOUND" in out, out[:80])]
 
 
+HTTP_TIMEOUT_S = 30  # longer than the API's own readiness timeout, so we see its real answer
+HTTP_ATTEMPTS = 3
+HTTP_RETRY_WAIT_S = 5
+
+
 def _http_get(port: int, path: str) -> tuple[int, str]:
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=HTTP_TIMEOUT_S)
     try:
         conn.request("GET", path)
         resp = conn.getresponse()
@@ -363,27 +422,55 @@ def _http_get(port: int, path: str) -> tuple[int, str]:
         conn.close()
 
 
-def check_mailpit(env: dict[str, str]) -> list[Result]:
+def _get_until(
+    port: int,
+    path: str,
+    ok: Callable[[int, str], bool],
+    get: Callable[[int, str], tuple[int, str]] = _http_get,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[bool, int, str]:
+    """GET with retries: right after a build the machine is busy and first requests are slow."""
+    status, body = 0, ""
+    for attempt in range(1, HTTP_ATTEMPTS + 1):
+        try:
+            status, body = get(port, path)
+        except OSError as exc:
+            status, body = 0, str(exc) or type(exc).__name__
+        if ok(status, body):
+            return True, status, body
+        if attempt < HTTP_ATTEMPTS:
+            sleep(HTTP_RETRY_WAIT_S)
+    return False, status, body
+
+
+def describe_readiness(body: str) -> str:
+    """Name the failing dependencies (and their latency) from a /ready body."""
     try:
-        status, _ = _http_get(int(env.get("MAILPIT_UI_PORT", "8025")), "/livez")
-    except OSError as exc:
-        return [Result("mailpit UI responds", False, str(exc))]
-    return [Result("mailpit UI responds", status == 200, str(status))]
+        data = json.loads(body)
+        parts = [
+            f"{c['name']}={c['status']} {c['latency_ms']:.0f}ms"
+            + (f" ({c['detail']})" if c.get("detail") else "")
+            for c in data["components"]
+        ]
+    except (ValueError, KeyError, TypeError):
+        return body[:120]
+    return ", ".join(parts)
+
+
+def check_mailpit(env: dict[str, str]) -> list[Result]:
+    ok, status, body = _get_until(
+        int(env.get("MAILPIT_UI_PORT", "8025")), "/livez", lambda st, _b: st == 200
+    )
+    return [Result("mailpit UI responds", ok, str(status) if status else body)]
 
 
 def check_api(env: dict[str, str]) -> list[Result]:
     port = int(env.get("API_PORT", "8000"))
-    results: list[Result] = []
-    for path, name in (
-        ("/health", "api /health 200"),
-        ("/ready", "api /ready 200 (db, redis, storage)"),
-    ):
-        try:
-            status, body = _http_get(port, path)
-        except OSError as exc:
-            results.append(Result(name, False, str(exc)))
-            continue
-        results.append(Result(name, status == 200, f"{status} {body[:120]}"))
+    ok, status, body = _get_until(port, "/health", lambda st, _b: st == 200)
+    results = [Result("api /health 200", ok, f"{status} {body[:120]}")]
+    ok, status, body = _get_until(port, "/ready", lambda st, _b: st == 200)
+    detail = f"{status} {describe_readiness(body)}" if status else body
+    results.append(Result("api /ready 200 (db, redis, storage)", ok, detail))
     return results
 
 
@@ -395,12 +482,20 @@ def check_web(env: dict[str, str]) -> list[Result]:
         ("/status", "web status page: all systems operational", "All systems operational"),
         ("/login", "web sign-in page renders", "Clients, reviewers and staff sign in here."),
     ):
-        try:
-            status, body = _http_get(port, path)
-        except OSError as exc:
-            results.append(Result(name, False, str(exc)))
-            continue
-        results.append(Result(name, status == 200 and needle in body, str(status)))
+
+        def page_ok(st: int, b: str, n: str = needle) -> bool:
+            return st == 200 and n in b
+
+        ok, status, body = _get_until(port, path, page_ok)
+        if ok or not status:
+            detail = str(status) if status else body
+        elif "Degraded" in body:
+            detail = f"{status} page says: Degraded (see /ready)"
+        elif "API unavailable" in body:
+            detail = f"{status} page says: API unavailable"
+        else:
+            detail = f"{status} expected text not found"
+        results.append(Result(name, ok, detail))
     return results
 
 

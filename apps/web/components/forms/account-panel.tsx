@@ -139,7 +139,10 @@ export function AccountPanel() {
             </>
           ) : (
             <form onSubmit={confirmMfa} className="mt-4 space-y-4">
-              <p className="text-sm text-ink-soft">1. Scan this QR code with your authenticator app.</p>
+              <p className="text-sm text-ink-soft">
+                1. On your phone, open an authenticator app (Google Authenticator, Microsoft
+                Authenticator or Authy), tap <strong>+</strong> and scan this QR code.
+              </p>
               {/* SVG rendered as an image: no scripts can run from it. */}
               <img
                 src={`data:image/svg+xml;utf8,${encodeURIComponent(setup.qr_svg)}`}
@@ -149,10 +152,12 @@ export function AccountPanel() {
                 className="rounded-md border border-line bg-white"
               />
               <p className="text-xs text-ink-soft">
-                Can&rsquo;t scan? Enter this key manually:{" "}
+                Can&rsquo;t scan? Choose &ldquo;Enter a setup key&rdquo; in the app and type this key (keep it
+                private):{" "}
                 <code className="select-all break-all rounded bg-paper px-1.5 py-0.5 font-mono">{setup.secret}</code>
               </p>
               <Field label="2. Enter the 6-digit code" name="code" inputMode="numeric" autoComplete="one-time-code"
+                hint="The code the app shows next to AZINCO. It changes every 30 seconds; your phone's time must be set automatically."
                 maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
               <SubmitButton busy={busy}>Turn on MFA</SubmitButton>
             </form>

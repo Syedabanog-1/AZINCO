@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HeaderAuth } from "@/components/header-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,12 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
                   {item.label}
                 </Link>
               ))}
-              <Link
-                href="/login"
-                className="ml-2 rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-strong"
-              >
-                Sign in
-              </Link>
+              <HeaderAuth />
             </nav>
           </div>
         </header>

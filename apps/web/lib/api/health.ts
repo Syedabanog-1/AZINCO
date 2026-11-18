@@ -29,7 +29,9 @@ export type SystemStatus =
   | { api: "up"; health: Health; readiness: Readiness; checkedAt: string }
   | { api: "down"; error: string; checkedAt: string };
 
-const TIMEOUT_MS = 5000;
+// Longer than the API's own readiness timeout (5 s), so a slow dependency shows up as
+// "Degraded: <component>" instead of a misleading "API did not respond".
+const TIMEOUT_MS = 10_000;
 
 /** Server-side base URL of the API. Never exposed to the browser. */
 export function apiBaseUrl(env: Record<string, string | undefined> = process.env): string {

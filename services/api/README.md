@@ -24,6 +24,7 @@ alembic downgrade -1      # roll back one revision
 
 | Revision | Content |
 |---|---|
+| 0005 | Ledger: `app.entities`, `app.approvals`, schema `ledger` (accounts, periods, journals, lines), invariants L1-L9 as DB triggers, post/reverse/discard/lock/reopen functions, per-tenant hash chain (ADR-0015) |
 | 0004 | Audit log: schema `audit`, hash-chained `audit_events`, `append_event()` / `verify_chain()`, append-only triggers (ADR-0012) |
 | 0003 | Auth: `sessions`, `email_verification_tokens`, lockout/MFA columns, SECURITY DEFINER auth functions (ADR-0006) |
 | 0002 | Row-Level Security: ENABLE+FORCE on all `app` tables, `app.current_tenant_id()` / `app.current_user_id()`, per-command policies (ADR-0003) |
@@ -53,3 +54,14 @@ fails, the action fails). Rows are hash-chained per tenant and can never be upda
 
 From code: `await azinco_api.audit.record(session, "domain.action", tenant_id=..., details={...})`.
 Sensitive keys in `details` are masked automatically.
+
+## [MOCK] Test workspace (local/CI only)
+
+Client onboarding (KYC/AML, engagement letter, advance payment) arrives in Phase 1. Until then,
+create a synthetic workspace for a verified account (refuses to run outside `AZINCO_ENV=local/ci`;
+the name is prefixed `[MOCK]` and a `tenant.created` audit event records `"mock": true`):
+
+```
+docker compose --env-file .env -f infra/docker/compose.yml exec api \
+  python -m azinco_api.devtools.seed_workspace --email you@example.com --name "Demo Traders"
+```

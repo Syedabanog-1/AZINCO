@@ -83,9 +83,9 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
         if "alembic_version" in sql:
             return 0, "0001"
         if "pg_tables" in sql:
-            return 0, "6"
+            return 0, "8"
         if "relforcerowsecurity" in sql:
-            return 0, "6"
+            return 0, "5" if "'ledger'" in sql else "8"
         if "FROM app.tenants" in sql:
             return 0, "0"
         if sql.startswith("CREATE TABLE"):
@@ -96,6 +96,8 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
             return 0, "0|3"
         if sql.startswith("DELETE FROM audit"):
             return 1, "ERROR:  permission denied for table audit_events"
+        if sql.startswith("INSERT INTO ledger.journals"):
+            return 1, "ERROR:  permission denied for table journals"
         raise AssertionError(sql)
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -126,6 +128,8 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
             return 0, "1|3"
         if sql.startswith("DELETE FROM audit"):
             return 0, "DELETE 0"
+        if sql.startswith("INSERT INTO ledger.journals"):
+            return 0, "INSERT 0 1"
         return 0, "off"
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -141,4 +145,40 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
         "readonly role is read-only",
         "audit hash chains verify",
         "app role cannot delete audit events",
+        "RLS enabled + forced on ledger tables",
+        "ledger hash chains verify",
+        "only the ledger role writes journals",
     }
+
+
+def test_get_until_retries_slow_then_succeeds() -> None:
+    calls: list[str] = []
+    waits: list[float] = []
+
+    def get(port: int, path: str) -> tuple[int, str]:
+        calls.append(path)
+        if len(calls) < 3:
+            raise TimeoutError("timed out")
+        return 200, "ok"
+
+    ok, status, _ = vs._get_until(8000, "/ready", lambda st, _b: st == 200, get, waits.append)
+    assert ok and status == 200 and len(calls) == 3
+    assert waits == [vs.HTTP_RETRY_WAIT_S, vs.HTTP_RETRY_WAIT_S]
+
+
+def test_get_until_gives_up_and_reports_last_answer() -> None:
+    def get(port: int, path: str) -> tuple[int, str]:
+        return 503, '{"status":"not_ready"}'
+
+    ok, status, body = vs._get_until(8000, "/ready", lambda st, _b: st == 200, get, lambda _s: None)
+    assert not ok and status == 503 and "not_ready" in body
+
+
+def test_describe_readiness_names_failing_dependency() -> None:
+    body = (
+        '{"status":"not_ready","components":['
+        '{"name":"postgres","status":"ok","latency_ms":3.2,"detail":null},'
+        '{"name":"storage","status":"fail","latency_ms":5001,"detail":"TimeoutError"}]}'
+    )
+    assert vs.describe_readiness(body) == ("postgres=ok 3ms, storage=fail 5001ms (TimeoutError)")
+    assert vs.describe_readiness("not json") == "not json"

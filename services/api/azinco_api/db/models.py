@@ -11,13 +11,16 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    CHAR,
     CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     MetaData,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -82,6 +85,11 @@ class TenantRole(enum.StrEnum):
     SECOND_REVIEWER = "second_reviewer"
     LOCAL_PARTNER = "local_partner"
     AUDITOR = "auditor"
+
+
+class ApprovalSubject(enum.StrEnum):
+    JOURNAL_POST = "journal_post"
+    PERIOD_REOPEN = "period_reopen"
 
 
 class PlatformRole(enum.StrEnum):
@@ -230,3 +238,57 @@ class EmailVerificationToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
+
+
+class Entity(Base):
+    """A legal entity whose books are kept (a tenant may hold several). Migration 0005."""
+
+    __tablename__ = "entities"
+    __table_args__ = (
+        CheckConstraint("length(btrim(legal_name)) > 0", name="entities_legal_name_check"),
+        CheckConstraint("jurisdiction ~ '^[A-Z]{2}$'", name="entities_jurisdiction_check"),
+        CheckConstraint(
+            "functional_currency ~ '^[A-Z]{3}$'", name="entities_functional_currency_check"
+        ),
+        # Target of composite (tenant_id, entity_id) foreign keys in schema `ledger`.
+        UniqueConstraint("tenant_id", "id", name="uq_entities_tenant_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    legal_name: Mapped[str] = mapped_column(Text, nullable=False)
+    jurisdiction: Mapped[str] = mapped_column(CHAR(2), nullable=False)
+    functional_currency: Mapped[str] = mapped_column(CHAR(3), nullable=False, server_default="PKR")
+    created_at: Mapped[datetime] = _created_at()
+
+
+class Approval(Base):
+    """A reviewer's decision. Inserted only by the signed-in human reviewer (DB trigger checks
+    role, MFA and status and snapshots name/role); immutable; consumed once by the ledger."""
+
+    __tablename__ = "approvals"
+    __table_args__ = (
+        CheckConstraint(
+            "licence_status IN ('verified', 'pending', 'not_recorded')",
+            name="approvals_licence_status_check",
+        ),
+        Index("ix_approvals_subject", "tenant_id", "subject_type", "subject_id"),
+        UniqueConstraint("tenant_id", "id", name="uq_approvals_tenant_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    subject_type: Mapped[ApprovalSubject] = mapped_column(
+        _pg_enum(ApprovalSubject, "approval_subject"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    approver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approver_role: Mapped[TenantRole] = mapped_column(
+        _pg_enum(TenantRole, "tenant_role"), nullable=False
+    )
+    approver_name: Mapped[str] = mapped_column(Text, nullable=False)
+    licence_status: Mapped[str] = mapped_column(Text, nullable=False, server_default="not_recorded")
+    comment: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
+    )

@@ -5,6 +5,7 @@ Run with:  uvicorn azinco_api.main:create_app --factory --port 8000
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
@@ -19,7 +20,7 @@ from azinco_api.core.errors import register_exception_handlers
 from azinco_api.core.logging import configure_logging, get_logger
 from azinco_api.core.middleware import RequestContextMiddleware
 from azinco_api.db.session import create_engine, create_session_factory
-from azinco_api.health.checks import ReadinessCheck, default_checks
+from azinco_api.health.checks import ReadinessCheck, close_checks, default_checks, warm_up
 from azinco_api.health.router import router as health_router
 
 
@@ -34,8 +35,13 @@ def create_app(
     db_engine = engine or create_engine(settings)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
+        checks = app_.state.readiness_checks
+        # Warm up in the background: startup (and /health) must not wait for dependencies.
+        warm = asyncio.create_task(warm_up(checks, settings.readiness_timeout_seconds))
         yield
+        warm.cancel()
+        await close_checks(checks)
         await db_engine.dispose()
 
     app = FastAPI(
