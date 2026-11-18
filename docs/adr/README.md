@@ -27,5 +27,6 @@ Owner decisions log:
 |---|---|---|---|
 | DEC-12 Base currency | PKR primary; reporting in PKR **and** USD | 2026-11-17 | Confirmed by owner (updated same day) |
 | DEC-14 International payments | **Stripe** only (PayPal removed). Client label: "Card" with "processed by Stripe". Adapter stays provider-agnostic | 2026-11-17 | Confirmed by owner |
-| DEC-01 First international market | UK | 2026-11-17 | Assumed — awaiting confirmation |
-| DEC-11 Auth approach | (a) FastAPI-native | 2026-11-17 | Assumed — awaiting confirmation |
+| DEC-01 First international market | UK | 2026-11-18 | **Confirmed by owner** |
+| DEC-11 Auth approach | (a) FastAPI-native (ADR-0006) | 2026-11-18 | **Confirmed by owner** |
+| DEC-13 Reviewer of Record | Aun Ali Zaidi, **FCMA** — Chartered Institute of Management Accountants (**CIMA**, UK); membership no. `######` (masked — kept outside the public repository); **certificate inspected and verified by owner 2026-11-18**, evidence held outside the repository | 2026-11-18 | Confirmed; licence status `verified` (BS §8.7). Which delivery modes this credential supports: legal review GAP-LEG-01 |

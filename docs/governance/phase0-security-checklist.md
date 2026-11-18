@@ -29,15 +29,15 @@
 | # | Criterion | Status | Evidence / owner |
 |---|---|---|---|
 | 1 | `docker compose up` brings all services healthy | ✅ | run-step-0.10b log: 39/39 |
-| 2 | CI green on all gates | ✅ | CI run #14 on `main` (f6111da), 2026-11-18: python, web, security, stack all green |
+| 2 | CI green on all gates | ✅ | CI runs #14 (f6111da) and #17 (9d18579, golden sets) on `main`, 2026-11-18: all four jobs green |
 | 3 | Isolation suite: tenant A cannot read/write tenant B on every tenant table | ✅ | `test_tenant_isolation.py`, ledger/audit RLS tests |
 | 4 | Unbalanced journal and update of a posted journal rejected **by the database** | ✅ | `test_ledger_db.py` incl. property tests |
 | 5 | Every API mutation produces an audit event and the chain verifies | ✅ | auth + ledger mutations audited in-transaction; `verify_stack` chains (new mutations must keep this) |
 | 6 | ADRs approved | ⏳ | ADR-0001…0016 written; owner approval in `phase0-signoff.md` |
 | 7 | Delivery-mode matrix + legal review recorded | 🟡 | Template ✅; legal review ⏳ GAP-LEG-01 (counsel) |
-| 8 | Reviewer of Record named and licence recorded | ⏳ | DEC-13 (owner) |
+| 8 | Reviewer of Record named and licence recorded | ✅ | Aun Ali Zaidi, FCMA — CIMA (UK) (DEC-13); membership no. `######` (masked, held outside the public repo); certificate verified by owner 2026-11-18. Scope of authority per delivery mode: legal review (row 7) |
 | 9 | Security review signed | ⏳ | This checklist + threat model → reviewer signature |
 | G | Golden-set framework and first synthetic set exist | ✅ | `azinco_worker.goldens` (schema, generator, scorers, runner, regression gate) + `goldens/sets/invoices-synthetic/v1` (100 items, status draft) + [MOCK] baseline; CI integrity check. Reviewer confirmation of labels ⏳ |
 
-**Phase 0 is not closed** until rows 6, 7, 8 and 9 are complete and signed. Nothing here
+**Phase 0 is not closed** until rows 6, 7 and 9 are complete and signed. Nothing here
 means production readiness.
