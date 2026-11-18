@@ -24,6 +24,7 @@ alembic downgrade -1      # roll back one revision
 
 | Revision | Content |
 |---|---|
+| 0006 | Schema `agent_state` for LangGraph checkpoints; `azinco_worker` may create tables only there (ADR-0002) |
 | 0005 | Ledger: `app.entities`, `app.approvals`, schema `ledger` (accounts, periods, journals, lines), invariants L1-L9 as DB triggers, post/reverse/discard/lock/reopen functions, per-tenant hash chain (ADR-0015) |
 | 0004 | Audit log: schema `audit`, hash-chained `audit_events`, `append_event()` / `verify_chain()`, append-only triggers (ADR-0012) |
 | 0003 | Auth: `sessions`, `email_verification_tokens`, lockout/MFA columns, SECURITY DEFINER auth functions (ADR-0006) |

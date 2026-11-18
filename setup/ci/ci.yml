@@ -1,5 +1,6 @@
 # AZINCO CI (Step 0.11). Runs on every pull request and on pushes to main.
 # Jobs: python (lint/type/unit/property + rule-packs gate), web (types/tests/build),
+#       (worker: Model Gateway + LangGraph crash/resume test runs in `stack`),
 #       security (secrets + dependency audit), stack (real Docker images, migrations,
 #       integration + tenant-isolation + ledger suites, verify_stack).
 # Synthetic data only: every secret below is generated per run by generate_env.py.
@@ -39,14 +40,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e "packages/py-common[dev]" -e "packages/rule-engine[dev]" \
-                      -e "services/api[dev]" -e "services/ledger[dev]"
+                      -e "services/api[dev]" -e "services/ledger[dev]" -e "services/worker[dev]"
       - name: Ruff (lint + format)
         run: |
           ruff check --no-cache .
           ruff format --check --no-cache .
       - name: mypy --strict (each package)
         run: |
-          for pkg in packages/py-common packages/rule-engine services/api services/ledger; do
+          for pkg in packages/py-common packages/rule-engine services/api services/ledger services/worker; do
             echo "::group::mypy $pkg"; (cd "$pkg" && mypy) ; echo "::endgroup::"
           done
       - name: Rule-pack activation gate
@@ -59,6 +60,7 @@ jobs:
           pytest -p no:cacheprovider packages/rule-engine/tests
           (cd services/api && pytest -p no:cacheprovider)
           (cd services/ledger && pytest -p no:cacheprovider)
+          (cd services/worker && pytest -p no:cacheprovider)
           pytest -p no:cacheprovider infra/docker/tests
 
   web:
@@ -100,7 +102,8 @@ jobs:
       - name: pip-audit (known vulnerabilities in Python dependencies)
         run: |
           python -m pip install --upgrade pip pip-audit
-          pip install "packages/py-common" "packages/rule-engine" "services/api" "services/ledger"
+          pip install "packages/py-common" "packages/rule-engine" "services/api" "services/ledger" \
+                      "services/worker"
           pip-audit --skip-editable --progress-spinner off
       - uses: actions/setup-node@v6
         with:
@@ -138,6 +141,8 @@ jobs:
         run: docker compose --env-file .env -f infra/docker/compose.yml --profile test run --rm api-test
       - name: Ledger Service tests (domain, Hypothesis, end-to-end)
         run: docker compose --env-file .env -f infra/docker/compose.yml --profile test run --rm ledger-test
+      - name: Worker tests (Model Gateway, LangGraph interrupt/resume, crash recovery)
+        run: docker compose --env-file .env -f infra/docker/compose.yml --profile test run --rm worker-test
       - name: verify_stack.py (roles, RLS, ports, chains, scanners, probes)
         run: python infra/docker/verify_stack.py
       - name: Logs on failure

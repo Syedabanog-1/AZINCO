@@ -98,6 +98,8 @@ def test_check_postgres_with_fake_runner_all_good() -> None:
             return 1, "ERROR:  permission denied for table audit_events"
         if sql.startswith("INSERT INTO ledger.journals"):
             return 1, "ERROR:  permission denied for table journals"
+        if "azinco_worker" in sql:
+            return 0, "f|t"
         raise AssertionError(sql)
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -130,6 +132,8 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
             return 0, "DELETE 0"
         if sql.startswith("INSERT INTO ledger.journals"):
             return 0, "INSERT 0 1"
+        if "azinco_worker" in sql:
+            return 0, "t|t"
         return 0, "off"
 
     env = {"AZINCO_DB_APP_PASSWORD": "x", "AZINCO_DB_READONLY_PASSWORD": "y"}
@@ -148,6 +152,7 @@ def test_check_postgres_detects_bypassrls_and_writable_public() -> None:
         "RLS enabled + forced on ledger tables",
         "ledger hash chains verify",
         "only the ledger role writes journals",
+        "worker role confined to agent_state",
     }
 
 

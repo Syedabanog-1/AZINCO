@@ -76,7 +76,7 @@ python infra/docker/verify_stack.py
 | 0.7 | Auth, MFA & RBAC — sign in works | Done (verified) |
 | 0.8 | Audit log (hash-chained, append-only) | Done (31/31 verified) |
 | 0.9 | Ledger: database invariants (0.9a) + Ledger Service internal API (0.9b) | Done (38/38 verified) |
-| 0.10 | Rule engine, Gateway, graph skeletons — 0.10a rule engine (done; verified by CI `stack`) · 0.10b gateway + graph (next) | In progress |
+| 0.10 | Rule engine (0.10a, CI-verified) + Model Gateway [MOCK] and LangGraph review graph with crash/resume (0.10b, verify with run-step-0.10b) | Done (verify 0.10b) |
 | 0.11 | CI pipeline — `.github/workflows/ci.yml` (python, web, security, stack), gitleaks, Dependabot; branch protection in docs/ci.md | Done (verify: first green PR) |
 | 0.12 | Phase 0 governance pack | Pending |
 

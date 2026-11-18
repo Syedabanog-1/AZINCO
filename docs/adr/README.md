@@ -5,9 +5,9 @@ Template: `0000-template.md`. Number ADRs sequentially; never edit an Accepted A
 | ADR | Title | Status |
 |---|---|---|
 | 0001 | Repo & service topology (monorepo, modular-monolith API + ledger + worker) | Proposed (Step 0.12) |
-| 0002 | Orchestration framework (LangGraph + Postgres checkpointer) | Proposed |
+| [0002](0002-orchestration-langgraph.md) | Orchestration — LangGraph, Postgres checkpointer, human interrupts | **Accepted** (Step 0.10b) |
 | [0003](0003-tenant-isolation.md) | Tenant isolation (shared schema + RLS + transaction-local context) | **Accepted** (Step 0.6) |
-| 0004 | Model Gateway | Proposed |
+| [0004](0004-model-gateway.md) | Model Gateway — model-agnostic, fenced untrusted data, masking, typed output | **Accepted** (Step 0.10b) |
 | 0005 | Queue (Redis Streams) | Proposed |
 | [0006](0006-authentication.md) | Authentication — FastAPI-native sessions, Argon2id, TOTP MFA | **Accepted** (Step 0.7) |
 | 0007 | Encryption & keys | Proposed |

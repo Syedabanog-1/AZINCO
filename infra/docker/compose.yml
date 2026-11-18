@@ -343,6 +343,35 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # ---------------------------------------------------------------- Worker tests (Step 0.10b)
+  # Model Gateway ([MOCK]) + LangGraph review graph with the Postgres checkpointer, including a
+  # real crash-and-resume test. Runs as azinco_worker (writes only to schema agent_state).
+  worker-test:
+    profiles: ["test"]
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+      target: dev
+    image: azinco-worker:dev-test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      AZINCO_ENV: ci
+      AZINCO_INTEGRATION_DB: "1"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-azinco}
+      AZINCO_DB_WORKER_PASSWORD: ${AZINCO_DB_WORKER_PASSWORD:?set in .env}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   pg_data:
   redis_data:
